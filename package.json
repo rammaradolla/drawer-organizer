@@ -1,12 +1,19 @@
 {
   "name": "drawer-organizer",
   "version": "1.0.0",
-  "description": "A web application for designing custom drawer organizers",
+  "description": "A custom drawer organizer design application",
+  "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
-    "install-all": "npm install && cd client && npm install && cd ../server && npm install"
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "client:dev": "cd client && npm run dev",
+    "server:dev": "cd server && npm run dev",
+    "client:build": "cd client && npm run build",
+    "client:preview": "cd client && npm run preview",
+    "check-ports": "echo 'Client Port 5173:' && (lsof -i :5173 || echo 'Available') && echo 'Server Port 3000:' && (lsof -i :3000 || echo 'Available')",
+    "kill-ports": "echo 'Killing processes on ports 5173 and 3000...' && (lsof -ti :5173 | xargs kill -9 2>/dev/null || echo 'No process on 5173') && (lsof -ti :3000 | xargs kill -9 2>/dev/null || echo 'No process on 3000')",
+    "setup-ports": "npm run kill-ports && sleep 2 && npm run check-ports"
   },
-  "devDependencies": {
-    "concurrently": "^8.0.1"
-  }
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 } 

@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 
 // Dynamic Three.js loader with error isolation
 const loadThreeJS = async () => {
@@ -22,157 +22,188 @@ const loadThreeJS = async () => {
   }
 };
 
-// Centralized texture manager hook with natural wood - light base and darker dividers
-const useWoodTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrapping) => {
-  const [baseTexture, setBaseTexture] = useState(null);
-  const [dividerTexture, setDividerTexture] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+// Global texture cache to persist across refreshes
+const textureCache = new Map();
+
+// Direct texture management with Three.js refs - bypasses React rendering
+const useDirectTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrapping) => {
+  const [textureStatus, setTextureStatus] = useState('loading');
+  const baseTextureRef = useRef(null);
+  const dividerTextureRef = useRef(null);
+  const baseMaterialRef = useRef(null);
+  const dividerMaterialRefs = useRef(new Set());
 
   useEffect(() => {
-    if (!TextureLoader || !RepeatWrapping || !selectedWoodType) return;
+    if (!TextureLoader || !RepeatWrapping || !selectedWoodType || !woodTypes) return;
 
     const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
     if (!selectedWood) return;
 
-    console.log('🎨 Loading texture - enhanced natural wood contrast (light base + dark dividers):', selectedWood.name);
-    setLoading(true);
-    setError(null);
-    setBaseTexture(null);
-    setDividerTexture(null);
+    const cacheKey = selectedWood.url;
+    
+    // Check cache first
+    if (textureCache.has(cacheKey)) {
+      console.log('🎯 USING CACHED TEXTURE:', selectedWood.name);
+      const cachedTexture = textureCache.get(cacheKey);
+      applyTextureDirectly(cachedTexture, selectedWood);
+      return;
+    }
+
+    console.log('🚀 DIRECT TEXTURE LOADING:', selectedWood.name, selectedWood.url);
+    setTextureStatus('loading');
 
     const loader = new TextureLoader();
     loader.load(
       selectedWood.url,
       (loadedTexture) => {
-        console.log('✅ Texture loaded, creating enhanced natural wood variants:', selectedWood.name, '(Base: 30% lighter, Dividers: 20% darker)');
+        console.log('✅ DIRECT TEXTURE LOADED:', selectedWood.name);
         
-        // Create light base texture (brighter for base plate)
-        const baseTextureClone = loadedTexture.clone();
-        baseTextureClone.wrapS = RepeatWrapping;
-        baseTextureClone.wrapT = RepeatWrapping;
-        baseTextureClone.repeat.set(3, 3); // Slightly less repeats for better visibility
-        baseTextureClone.offset.set(0, 0); // Reset offset
-        baseTextureClone.rotation = 0; // Reset rotation
-        baseTextureClone.needsUpdate = true;
+        // Cache the texture
+        textureCache.set(cacheKey, loadedTexture);
         
-        // Create darker divider texture (slightly darker for walls)
-        const dividerTextureClone = loadedTexture.clone();
-        dividerTextureClone.wrapS = RepeatWrapping;
-        dividerTextureClone.wrapT = RepeatWrapping;
-        dividerTextureClone.repeat.set(1, 2); // Less repeats for divider walls
-        dividerTextureClone.needsUpdate = true;
-        
-        setBaseTexture(baseTextureClone);
-        setDividerTexture(dividerTextureClone);
-        setLoading(false);
+        // Apply directly to materials
+        applyTextureDirectly(loadedTexture, selectedWood);
       },
       undefined,
       (error) => {
-        console.error('❌ Texture load failed:', selectedWood.name, error.message);
-        setError(error);
-        setBaseTexture(null);
-        setDividerTexture(null);
-        setLoading(false);
+        console.error('❌ DIRECT TEXTURE FAILED:', selectedWood.name, error);
+        setTextureStatus('error');
       }
     );
+
+    function applyTextureDirectly(texture, wood) {
+      try {
+        // Create base texture
+        const baseTexture = texture.clone();
+        baseTexture.wrapS = RepeatWrapping;
+        baseTexture.wrapT = RepeatWrapping;
+        baseTexture.repeat.set(3, 3);
+        baseTexture.needsUpdate = true;
+        
+        // Create divider texture  
+        const dividerTexture = texture.clone();
+        dividerTexture.wrapS = RepeatWrapping;
+        dividerTexture.wrapT = RepeatWrapping;
+        dividerTexture.repeat.set(1, 2);
+        dividerTexture.needsUpdate = true;
+
+        // Store in refs
+        baseTextureRef.current = baseTexture;
+        dividerTextureRef.current = dividerTexture;
+
+        // Apply directly to existing materials
+        if (baseMaterialRef.current) {
+          baseMaterialRef.current.map = baseTexture;
+          baseMaterialRef.current.color.setHex(0xffffff); // Pure white
+          baseMaterialRef.current.emissive.setHex(0x000000); // No emissive
+          baseMaterialRef.current.emissiveIntensity = 0;
+          baseMaterialRef.current.needsUpdate = true;
+          console.log('🎯 BASE MATERIAL UPDATED DIRECTLY');
+        }
+
+        // Apply to all divider materials
+        dividerMaterialRefs.current.forEach(material => {
+          if (material) {
+            material.map = dividerTexture;
+            material.color.setHex(0xaa8866); // Dark wood tint
+            material.emissive.setHex(0x000000);
+            material.emissiveIntensity = 0;
+            material.needsUpdate = true;
+          }
+        });
+        
+        console.log('🎯 ALL MATERIALS UPDATED DIRECTLY - TEXTURES APPLIED');
+        setTextureStatus('loaded');
+        
+      } catch (error) {
+        console.error('❌ DIRECT TEXTURE APPLICATION ERROR:', error);
+        setTextureStatus('error');
+      }
+    }
   }, [selectedWoodType, TextureLoader, RepeatWrapping, woodTypes]);
 
-  return { baseTexture, dividerTexture, loading, error };
+  return {
+    baseTexture: baseTextureRef.current,
+    dividerTexture: dividerTextureRef.current,
+    textureStatus,
+    baseMaterialRef,
+    dividerMaterialRefs
+  };
 };
 
-// Isolated Three.js Components with light base and darker divider textures
-const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseTexture }) => {
-  // Find the selected wood for fallback color
+// Enhanced BaseSheet with direct material reference
+const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseMaterialRef, baseTexture }) => {
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
-  
   const baseThickness = 0.25;
   
-  // Use natural light wood properties for base plate - lighter than dividers
-  const materialProps = baseTexture 
-    ? { 
-        map: baseTexture, 
-        roughness: 0.3, // Smoother for lighter wood appearance
-        metalness: 0.01, // Very minimal metalness for natural light wood
-        transparent: false,
-        // Natural warm wood glow for lighter appearance
-        emissive: 0x332211, // Warm, natural wood glow
-        emissiveIntensity: 0.3, // Moderate intensity for natural light wood
-        toneMapped: true,
-        // Natural light wood tint - warm and light
-        color: 0xffeecc // Warm, natural light wood tint
-      }
-    : { 
-        // Natural light wood-colored fallback - brighter than dividers
-        color: [
-          Math.min((selectedWood?.baseColor?.r || 0.90) * 1.3, 1.0), // 30% brighter for light wood
-          Math.min((selectedWood?.baseColor?.g || 0.82) * 1.25, 1.0), 
-          Math.min((selectedWood?.baseColor?.b || 0.70) * 1.2, 1.0)
-        ], 
-        roughness: 0.3, 
-        metalness: 0.01,
-        emissive: 0x332211,
-        emissiveIntensity: 0.3
-      };
+  // Material properties optimized for texture visibility
+  const materialProps = {
+    map: baseTexture,
+    color: baseTexture ? 0xffffff : [
+      Math.min((selectedWood?.baseColor?.r || 0.92) * 1.4, 1.0),
+      Math.min((selectedWood?.baseColor?.g || 0.85) * 1.3, 1.0),
+      Math.min((selectedWood?.baseColor?.b || 0.75) * 1.25, 1.0)
+    ],
+    roughness: 0.3,
+    metalness: 0.02,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    transparent: false,
+    toneMapped: true
+  };
 
-  console.log('🏗️ BaseSheet (NATURAL LIGHT WOOD - Enhanced):', {
+  const handleMaterialRef = (material) => {
+    if (material) {
+      baseMaterialRef.current = material;
+      console.log('🏗️ BASE MATERIAL REF SET - Direct updates enabled');
+    }
+  };
+
+  console.log('🏗️ BaseSheet - DIRECT TEXTURE MODE:', {
     hasTexture: !!baseTexture,
     selectedWood: selectedWood?.name,
-    appearance: 'natural light wood - lighter than dividers',
-    contrast: '30% brighter than dividers',
-    materialProps: baseTexture ? 'with enhanced light wood tint' : 'enhanced light wood color'
+    materialMode: baseTexture ? 'DIRECT TEXTURE APPLICATION' : 'FALLBACK COLORS'
   });
 
   return (
     <mesh position={[0, -baseThickness / 2, 0]} receiveShadow>
       <boxGeometry args={[dimensions.width, baseThickness, dimensions.depth]} />
-      <meshStandardMaterial {...materialProps} />
+      <meshStandardMaterial ref={handleMaterialRef} {...materialProps} />
     </mesh>
   );
 };
 
-const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, baseTexture }) => {
-  // Find the selected wood for fallback color
+// Enhanced DividerWall with direct material reference
+const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, dividerMaterialRefs, baseTexture }) => {
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
 
-  // Use natural darker wood material for dividers - darker than light base
-  const materialProps = baseTexture 
-    ? { 
-        map: baseTexture, 
-        roughness: 0.7, // Rougher for natural darker wood appearance
-        metalness: 0.08, // Slightly more metallic for deeper wood look
-        transparent: false,
-        // No emissive light to keep them naturally darker than base
-        emissive: 0x000000, // No artificial glow for darker wood
-        emissiveIntensity: 0,
-        toneMapped: true,
-        // Natural darker wood tint - warm but darker
-        color: 0xccaa88 // Natural darker wood tint
-      }
-    : { 
-        // Natural darker wood-colored fallback - clearly darker than base
-        color: [
-          (selectedWood?.baseColor?.r || 0.80) * 0.8, // 20% darker than base for clear contrast
-          (selectedWood?.baseColor?.g || 0.72) * 0.8, 
-          (selectedWood?.baseColor?.b || 0.60) * 0.8
-        ], 
-        roughness: 0.7, 
-        metalness: 0.08,
-        emissive: 0x000000,
-        emissiveIntensity: 0
-      };
+  // Material properties for dividers
+  const materialProps = {
+    map: baseTexture,
+    color: baseTexture ? 0xaa8866 : [
+      (selectedWood?.baseColor?.r || 0.75) * 0.7,
+      (selectedWood?.baseColor?.g || 0.68) * 0.7,
+      (selectedWood?.baseColor?.b || 0.55) * 0.7
+    ],
+    roughness: 0.6,
+    metalness: 0.05,
+    emissive: 0x000000,
+    emissiveIntensity: 0,
+    transparent: false,
+    toneMapped: true
+  };
 
-  console.log('🧱 DividerWall (NATURAL DARK WOOD - Enhanced):', {
-    hasTexture: !!baseTexture,
-    selectedWood: selectedWood?.name,
-    appearance: 'natural dark wood - darker than base',
-    contrast: '20% darker than base for clear contrast'
-  });
+  const handleMaterialRef = (material) => {
+    if (material) {
+      dividerMaterialRefs.current.add(material);
+      console.log('🧱 DIVIDER MATERIAL REF ADDED - Direct updates enabled');
+    }
+  };
 
   return (
     <mesh position={position} castShadow>
       <boxGeometry args={dimensions} />
-      <meshStandardMaterial {...materialProps} />
+      <meshStandardMaterial ref={handleMaterialRef} {...materialProps} />
     </mesh>
   );
 };
@@ -180,28 +211,30 @@ const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, baseTe
 const DrawerScene = ({ selectedWoodType, dimensions, blocks, splitLines, woodTypes, TextureLoader, RepeatWrapping }) => {
   const dividerThickness = 0.5;
   
-  // Use centralized texture loading with light base and dark divider textures
-  const { baseTexture, dividerTexture, loading: textureLoading, error: textureError } = useWoodTexture(
+  const { baseTexture, dividerTexture, textureStatus, baseMaterialRef, dividerMaterialRefs } = useDirectTexture(
     selectedWoodType, 
     woodTypes, 
     TextureLoader, 
     RepeatWrapping
   );
 
-  console.log('🎬 Scene textures - Enhanced natural wood contrast:', {
-    baseTexture: !!baseTexture ? '✅ Enhanced Light Wood (30% brighter)' : '⏳ Loading...',
-    dividerTexture: !!baseTexture ? '✅ Enhanced Dark Wood (20% darker)' : '⏳ Loading...',
+  console.log('🎬 DIRECT TEXTURE SCENE:', {
+    baseTexture: !!baseTexture ? '✅ Wood Grain Active' : '⏳ Loading/Fallback',
+    dividerTexture: !!dividerTexture ? '✅ Wood Grain Active' : '⏳ Loading/Fallback',
     selectedWood: selectedWoodType,
-    contrast: 'Base lighter than dividers - natural wood tones'
+    textureStatus,
+    mode: 'DIRECT MATERIAL UPDATES - Bypass React rendering'
   });
 
   return (
     <>
-      {/* Enhanced lighting with shadow casting and better texture visibility */}
-      <ambientLight intensity={0.85} />
+      {/* Optimized lighting for wood grain texture visibility */}
+      <ambientLight intensity={0.7} color="#fff8f0" />
+      
       <directionalLight 
-        position={[10, 10, 5]} 
-        intensity={0.6}
+        position={[12, 12, 8]} 
+        intensity={0.5}
+        color="#ffffff"
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
@@ -213,15 +246,23 @@ const DrawerScene = ({ selectedWoodType, dimensions, blocks, splitLines, woodTyp
         shadow-camera-bottom={-dimensions.depth}
         shadow-bias={-0.0001}
       />
-      {/* Additional lighting for texture visibility */}
-      <pointLight position={[-10, -10, -5]} intensity={0.4} />
-      <pointLight position={[10, -5, 10]} intensity={0.3} color="#ffffff" />
-      <pointLight position={[0, -8, 0]} intensity={0.5} color="#fff8e7" /> {/* Warm light from below for base plate */}
+      
+      <directionalLight 
+        position={[-8, 8, 6]} 
+        intensity={0.3}
+        color="#fff5e8"
+      />
+      
+      <pointLight position={[-10, -6, -4]} intensity={0.3} color="#fff0e6" />
+      <pointLight position={[10, -4, 10]} intensity={0.25} color="#ffffff" />
+      <pointLight position={[0, -8, 0]} intensity={0.4} color="#fff8f0" decay={0.5} />
+      <pointLight position={[0, 6, -8]} intensity={0.2} color="#f8f4e8" />
       
       <BaseSheet 
         dimensions={dimensions} 
         selectedWoodType={selectedWoodType} 
         woodTypes={woodTypes} 
+        baseMaterialRef={baseMaterialRef}
         baseTexture={baseTexture}
       />
       
@@ -246,6 +287,7 @@ const DrawerScene = ({ selectedWoodType, dimensions, blocks, splitLines, woodTyp
               dimensions={[wallWidth, dimensions.height, dividerThickness]}
               selectedWoodType={selectedWoodType}
               woodTypes={woodTypes}
+              dividerMaterialRefs={dividerMaterialRefs}
               baseTexture={baseTexture}
             />
           );
@@ -261,6 +303,7 @@ const DrawerScene = ({ selectedWoodType, dimensions, blocks, splitLines, woodTyp
               dimensions={[dividerThickness, dimensions.height, wallLength]}
               selectedWoodType={selectedWoodType}
               woodTypes={woodTypes}
+              dividerMaterialRefs={dividerMaterialRefs}
               baseTexture={baseTexture}
             />
           );
@@ -280,7 +323,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-// Texture loading overlay
+// Enhanced texture loading overlay
 const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -288,16 +331,15 @@ const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
 
   useEffect(() => {
-    // Show loading overlay for a short time when texture changes
     setIsVisible(true);
     setProgress(0);
     
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 2500); // Longer to show light/dark processing
+    }, 3000); // Longer to show enhanced processing
 
     const progressTimer = setInterval(() => {
-      setProgress(prev => Math.min(prev + 12, 100));
+      setProgress(prev => Math.min(prev + 10, 100));
     }, 300);
 
     return () => {
@@ -309,12 +351,15 @@ const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
   if (!isVisible) return null;
 
   return (
-    <div className="absolute top-2 right-2 bg-black bg-opacity-75 text-white px-3 py-2 rounded-md text-xs">
-      <div className="flex items-center space-x-2">
-        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-        <div className="flex flex-col">
-          <span>Processing {selectedWood?.name} texture... {progress}%</span>
-          <span className="text-gray-300 text-xs">Enhanced: Light base + Dark dividers + Shadows</span>
+    <div className="absolute top-2 right-2 bg-black bg-opacity-80 text-white px-4 py-3 rounded-lg text-xs shadow-lg">
+      <div className="flex items-center space-x-3">
+        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col space-y-1">
+          <span className="font-medium">Processing {selectedWood?.name} texture... {progress}%</span>
+          <span className="text-green-300">✨ Enhanced Natural Wood System</span>
+          <span className="text-gray-300 text-xs">
+            🌟 Light Base + Dark Dividers + Premium Lighting
+          </span>
         </div>
       </div>
     </div>
@@ -418,8 +463,8 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
             }}
             shadows={{
               enabled: true,
-              type: 'pcf', // Percentage Closer Filtering for softer shadows
-              size: 1024   // Good balance between quality and performance
+              type: 'pcf',
+              size: 1024
             }}
             gl={{ 
               antialias: true, 
@@ -429,7 +474,7 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
             onCreated={({ gl }) => {
               gl.setClearColor('#f8fafc', 1);
               gl.shadowMap.enabled = true;
-              gl.shadowMap.type = gl.PCFSoftShadowMap; // Soft shadows
+              gl.shadowMap.type = gl.PCFSoftShadowMap;
             }}
             style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
           >
@@ -457,7 +502,6 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
           </Canvas>
         </Suspense>
         
-        {/* Texture Loading Overlay */}
         <TextureLoadingOverlay selectedWoodType={selectedWoodType} woodTypes={woodTypes} />
       </div>
     </div>

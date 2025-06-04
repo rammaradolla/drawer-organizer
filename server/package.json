@@ -5,7 +5,12 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "start:port": "PORT=3000 node app.js",
+    "dev": "nodemon app.js",
+    "dev:port": "PORT=3000 nodemon app.js",
+    "check-port": "lsof -i :3000 || echo 'Port 3000 is available'",
+    "kill-port": "lsof -ti :3000 | xargs kill -9 || echo 'No process found on port 3000'",
+    "check-all-ports": "echo 'Checking client port 5173:' && (lsof -i :5173 || echo 'Available') && echo 'Checking server port 3000:' && (lsof -i :3000 || echo 'Available')"
   },
   "keywords": [],
   "author": "",

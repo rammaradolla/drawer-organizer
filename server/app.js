@@ -2,20 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const { PORTS, SERVER_CONFIG } = require('./config/ports');
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 
-// Middleware
+// Middleware - Using centralized port configuration
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:5175',
-    process.env.CORS_ORIGIN
-  ].filter(Boolean),
+  origin: SERVER_CONFIG.CORS_ORIGINS,
   methods: ['GET', 'POST'],
   credentials: true
 }));
@@ -36,7 +32,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
+// Use centralized port configuration
+const PORT = SERVER_CONFIG.PORT;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Client running on port ${PORTS.CLIENT}`);
+  console.log(`🔗 Accepting client requests from: ${SERVER_CONFIG.CLIENT_URL}`);
+  console.log(`🌐 CORS origins:`, SERVER_CONFIG.CORS_ORIGINS);
 }); 
