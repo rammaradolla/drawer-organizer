@@ -2,111 +2,56 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Stage, Layer, Rect, Line, Group, Text, Arrow } from 'react-konva';
 import ThreeJSWrapper from './ThreeJSWrapper';
 
-// Wood types configuration with realistic properties - moved to top level
-const woodTypes = {
-  // Light Woods
-  birch: {
-    name: 'Birch',
-    category: 'Light',
-    baseColor: { r: 0.98, g: 0.94, b: 0.85 },
-    dividerColor: { r: 0.95, g: 0.90, b: 0.80 },
-    grainIntensity: 0.25,
-    description: 'Light, creamy white with subtle grain'
-  },
-  maple: {
-    name: 'Maple',
-    category: 'Light',
-    baseColor: { r: 0.96, g: 0.91, b: 0.75 },
-    dividerColor: { r: 0.94, g: 0.88, b: 0.72 },
-    grainIntensity: 0.3,
-    description: 'Light golden with fine, straight grain'
-  },
-  pine: {
-    name: 'Pine',
-    category: 'Light',
-    baseColor: { r: 0.95, g: 0.89, b: 0.70 },
-    dividerColor: { r: 0.92, g: 0.85, b: 0.65 },
-    grainIntensity: 0.35,
-    description: 'Warm yellow with prominent grain lines'
-  },
-  ash: {
-    name: 'Ash',
-    category: 'Light',
-    baseColor: { r: 0.93, g: 0.89, b: 0.80 },
-    dividerColor: { r: 0.90, g: 0.85, b: 0.75 },
-    grainIntensity: 0.4,
-    description: 'Creamy white with bold grain patterns'
-  },
-  
-  // Medium Woods
-  oak: {
-    name: 'Oak',
-    category: 'Medium',
-    baseColor: { r: 0.85, g: 0.75, b: 0.55 },
-    dividerColor: { r: 0.80, g: 0.68, b: 0.48 },
-    grainIntensity: 0.45,
-    description: 'Classic golden brown with distinctive grain'
-  },
-  cherry: {
-    name: 'Cherry',
-    category: 'Medium',
-    baseColor: { r: 0.82, g: 0.60, b: 0.45 },
-    dividerColor: { r: 0.78, g: 0.55, b: 0.40 },
-    grainIntensity: 0.35,
-    description: 'Rich reddish-brown with smooth grain'
-  },
-  beech: {
-    name: 'Beech',
-    category: 'Medium',
-    baseColor: { r: 0.88, g: 0.78, b: 0.62 },
-    dividerColor: { r: 0.84, g: 0.72, b: 0.55 },
-    grainIntensity: 0.4,
-    description: 'Pale brown with fine, even grain'
-  },
-  
-  // Dark Woods
-  walnut: {
-    name: 'Walnut',
-    category: 'Dark',
-    baseColor: { r: 0.65, g: 0.50, b: 0.35 },
-    dividerColor: { r: 0.60, g: 0.45, b: 0.30 },
-    grainIntensity: 0.5,
-    description: 'Rich chocolate brown with flowing grain'
-  },
-  mahogany: {
-    name: 'Mahogany',
-    category: 'Dark',
-    baseColor: { r: 0.70, g: 0.45, b: 0.30 },
-    dividerColor: { r: 0.65, g: 0.40, b: 0.25 },
-    grainIntensity: 0.4,
-    description: 'Deep reddish-brown with interlocked grain'
-  },
-  ebony: {
-    name: 'Ebony',
-    category: 'Dark',
-    baseColor: { r: 0.25, g: 0.20, b: 0.15 },
-    dividerColor: { r: 0.20, g: 0.15, b: 0.10 },
-    grainIntensity: 0.3,
-    description: 'Very dark with subtle grain patterns'
-  }
+// Dynamic texture loading from public/textures directory
+const loadAvailableTextures = () => {
+  const textureFiles = [
+    'ash.jpg',
+    'beech.jpg', 
+    'birch.jpg',
+    'cherry.jpg',
+    'maple.jpg',
+    'oak-red.jpeg',
+    'walnut.jpeg'
+  ];
+
+  return textureFiles.map(filename => {
+    const name = filename.replace(/\.(jpg|jpeg)$/i, '');
+    const displayName = name.charAt(0).toUpperCase() + name.slice(1).replace('-', ' ');
+    
+    return {
+      id: name.toLowerCase().replace('-', ''),
+      name: displayName,
+      filename: filename,
+      url: `/textures/${filename}`,
+      // Generate realistic colors based on wood type for fallback
+      baseColor: getWoodColor(name),
+      dividerColor: getWoodColor(name, true)
+    };
+  });
 };
 
-// Wood texture mapping for different wood types
-const getTextureUrl = (woodType) => {
-  const textureFiles = {
-    birch: '/textures/birch.jpg',
-    maple: '/textures/maple.jpg',
-    pine: '/textures/maple.jpg', // Use maple for pine
-    ash: '/textures/ash.jpg',
-    oak: '/textures/oak-red.jpeg',
-    cherry: '/textures/cherry.jpg',
-    beech: '/textures/beech.jpg',
-    walnut: '/textures/walnut.jpeg',
-    mahogany: '/textures/cherry.jpg', // Use cherry for mahogany
-    ebony: '/textures/walnut.jpeg' // Use walnut for ebony
+// Generate realistic wood colors for fallback
+const getWoodColor = (woodName, isDivider = false) => {
+  const colorMap = {
+    'ash': isDivider ? { r: 0.90, g: 0.85, b: 0.75 } : { r: 0.93, g: 0.89, b: 0.80 },
+    'beech': isDivider ? { r: 0.84, g: 0.72, b: 0.55 } : { r: 0.88, g: 0.78, b: 0.62 },
+    'birch': isDivider ? { r: 0.95, g: 0.90, b: 0.80 } : { r: 0.98, g: 0.94, b: 0.85 },
+    'cherry': isDivider ? { r: 0.78, g: 0.55, b: 0.40 } : { r: 0.82, g: 0.60, b: 0.45 },
+    'maple': isDivider ? { r: 0.94, g: 0.88, b: 0.72 } : { r: 0.96, g: 0.91, b: 0.75 },
+    'oakred': isDivider ? { r: 0.80, g: 0.68, b: 0.48 } : { r: 0.85, g: 0.75, b: 0.55 },
+    'walnut': isDivider ? { r: 0.60, g: 0.45, b: 0.30 } : { r: 0.65, g: 0.50, b: 0.35 }
   };
-  return textureFiles[woodType] || '/textures/maple.jpg';
+  
+  return colorMap[woodName.toLowerCase().replace('-', '')] || 
+         (isDivider ? { r: 0.94, g: 0.88, b: 0.72 } : { r: 0.96, g: 0.91, b: 0.75 });
 };
+
+// Load available textures
+const availableTextures = loadAvailableTextures();
+
+// Debug: Log available textures
+console.log('Available textures loaded:', availableTextures);
+console.log('Number of textures:', availableTextures.length);
 
 // Three.js components moved to isolated ThreeJSWrapper.jsx to prevent reconciler conflicts
 
@@ -115,23 +60,25 @@ const GRID_SIZE = 0.25 * PIXELS_PER_INCH; // Grid size is 0.25 inches
 const PADDING = 40; // Padding around the canvas
 const MIN_SIZE = 0.5 * PIXELS_PER_INCH; // Minimum size is 0.5 inches
 
-// Wood Texture Selector Component with visual thumbnails
-const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange, woodTypes }) => {
+// Updated Wood Texture Selector Component with dynamic texture loading
+const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange }) => {
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Get texture URLs using the public directory function
-  const getTextureForWood = (woodType) => getTextureUrl(woodType);
 
-  const handleWoodTypeSelect = (woodType) => {
-    onWoodTypeChange(woodType);
+  const handleWoodTypeSelect = (textureId) => {
+    console.log('Texture selected:', textureId);
+    onWoodTypeChange(textureId);
     setIsOpen(false);
   };
 
-  const selectedTexture = getTextureForWood(selectedWoodType);
+  const selectedTexture = availableTextures.find(t => t.id === selectedWoodType) || availableTextures[0];
+  
+  console.log('WoodTextureSelector - selectedWoodType:', selectedWoodType);
+  console.log('WoodTextureSelector - selectedTexture:', selectedTexture);
+  console.log('WoodTextureSelector - availableTextures in component:', availableTextures);
 
   return (
     <div className="relative flex items-center space-x-2 flex-shrink-0">
-      <label className="text-sm font-medium text-slate-700">Wood Type</label>
+      <label className="text-sm font-medium text-slate-700">Wood Texture</label>
       
       {/* Current Selection Display */}
       <button
@@ -140,8 +87,8 @@ const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange, woodTypes }) 
       >
         <div className="w-8 h-8 rounded border border-slate-200 overflow-hidden flex-shrink-0 bg-gray-200">
           <img 
-            src={selectedTexture} 
-            alt={`${woodTypes[selectedWoodType].name} texture`}
+            src={selectedTexture.url} 
+            alt={`${selectedTexture.name} texture`}
             className="w-full h-full object-cover"
             onError={(e) => {
               e.target.style.display = 'none';
@@ -149,7 +96,7 @@ const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange, woodTypes }) 
           />
         </div>
         <span className="text-sm font-medium text-slate-900 min-w-0">
-          {woodTypes[selectedWoodType].name}
+          {selectedTexture.name}
         </span>
         <svg 
           className={`w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -163,48 +110,51 @@ const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange, woodTypes }) 
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-          {['Light', 'Medium', 'Dark'].map(category => (
-            <div key={category} className="p-2">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">
-                {category} Woods
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(woodTypes)
-                  .filter(([_, wood]) => wood.category === category)
-                  .map(([key, wood]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleWoodTypeSelect(key)}
-                      className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${
-                        selectedWoodType === key 
-                          ? 'bg-blue-50 border-2 border-blue-200' 
-                          : 'hover:bg-slate-50 border-2 border-transparent'
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded border border-slate-200 overflow-hidden flex-shrink-0 bg-gray-200">
-                        <img 
-                          src={getTextureForWood(key)} 
-                          alt={`${wood.name} texture`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <div className="text-sm font-medium text-slate-900 truncate">
-                          {wood.name}
-                        </div>
-                        <div className="text-xs text-slate-500 truncate">
-                          {wood.description}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-              </div>
+        <div className="absolute top-full left-0 mt-1 w-96 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+          <div className="p-3">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">
+              Available Wood Textures ({availableTextures.length})
             </div>
-          ))}
+            <div className="grid grid-cols-1 gap-3">
+              {availableTextures.map((texture) => (
+                <button
+                  key={texture.id}
+                  onClick={() => handleWoodTypeSelect(texture.id)}
+                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                    selectedWoodType === texture.id 
+                      ? 'bg-blue-50 border-2 border-blue-200' 
+                      : 'hover:bg-slate-50 border-2 border-transparent'
+                  }`}
+                >
+                  <div className="w-16 h-16 rounded border border-slate-200 overflow-hidden flex-shrink-0 bg-gray-200">
+                    <img 
+                      src={texture.url} 
+                      alt={`${texture.name} texture`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('Failed to load texture preview:', texture.url);
+                        e.target.style.display = 'none';
+                      }}
+                      onLoad={() => {
+                        console.log('Texture preview loaded:', texture.name);
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 text-left min-w-0">
+                    <div className="text-sm font-medium text-slate-900 truncate">
+                      {texture.name}
+                    </div>
+                    <div className="text-xs text-slate-500 truncate">
+                      {texture.filename}
+                    </div>
+                    <div className="text-xs text-slate-400 truncate">
+                      ID: {texture.id}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -354,7 +304,7 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
   const [draggedLine, setDraggedLine] = useState(null);
   const [affectedBlocks, setAffectedBlocks] = useState([]);
   const [originalLinePosition, setOriginalLinePosition] = useState(null);
-  const [selectedWoodType, setSelectedWoodType] = useState('maple'); // New wood type state
+  const [selectedWoodType, setSelectedWoodType] = useState(availableTextures[0]?.id || 'maple'); // Use first available texture
   
   // History management
   const [history, setHistory] = useState([]);
@@ -725,7 +675,6 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
         <WoodTextureSelector 
           selectedWoodType={selectedWoodType}
           onWoodTypeChange={setSelectedWoodType}
-          woodTypes={woodTypes}
         />
 
         {/* Compartment Controls - aligned with dropdown */}
@@ -947,7 +896,7 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
               
               <div className="text-xs text-slate-600 mt-3 space-y-2">
                 <div className="flex justify-between">
-                  <span className="font-medium">Selected Wood: {woodTypes[selectedWoodType].name}</span>
+                  <span className="font-medium">Selected Wood: {availableTextures.find(t => t.id === selectedWoodType)?.name}</span>
                   <span>Scale: {Math.round(scale * 100)}%</span>
                 </div>
                 <div>
@@ -978,16 +927,16 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
               dimensions={dimensions}
               blocks={blocks}
               splitLines={splitLines}
-              woodTypes={woodTypes}
+              woodTypes={availableTextures}
             />
             
             <div className="text-xs text-slate-600 mt-3 space-y-1">
               <div className="flex justify-between">
                 <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
-                <span className="font-medium text-slate-800">{woodTypes[selectedWoodType].name} Wood</span>
+                <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
               </div>
               <div className="text-slate-500 text-center">
-                Interactive 3D Preview • {woodTypes[selectedWoodType].description}
+                Interactive 3D Preview
               </div>
             </div>
           </div>
