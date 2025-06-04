@@ -35,7 +35,7 @@ const useWoodTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrappi
     const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
     if (!selectedWood) return;
 
-    console.log('🎨 Loading texture - natural wood with light base and dark dividers:', selectedWood.name);
+    console.log('🎨 Loading texture - enhanced natural wood contrast (light base + dark dividers):', selectedWood.name);
     setLoading(true);
     setError(null);
     setBaseTexture(null);
@@ -45,7 +45,7 @@ const useWoodTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrappi
     loader.load(
       selectedWood.url,
       (loadedTexture) => {
-        console.log('✅ Texture loaded, creating natural wood variants - light base and dark dividers:', selectedWood.name);
+        console.log('✅ Texture loaded, creating enhanced natural wood variants:', selectedWood.name, '(Base: 30% lighter, Dividers: 20% darker)');
         
         // Create light base texture (brighter for base plate)
         const baseTextureClone = loadedTexture.clone();
@@ -88,39 +88,39 @@ const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseTexture }) => 
   
   const baseThickness = 0.25;
   
-  // Use natural light wood properties for base plate
+  // Use natural light wood properties for base plate - lighter than dividers
   const materialProps = baseTexture 
     ? { 
         map: baseTexture, 
-        roughness: 0.4, // Natural wood roughness
-        metalness: 0.02, // Minimal metalness for natural wood
+        roughness: 0.3, // Smoother for lighter wood appearance
+        metalness: 0.01, // Very minimal metalness for natural light wood
         transparent: false,
-        // Subtle emissive light for natural lighter wood appearance
-        emissive: 0x221100, // Warm, natural wood glow (not white)
-        emissiveIntensity: 0.2, // Moderate intensity for natural look
+        // Natural warm wood glow for lighter appearance
+        emissive: 0x332211, // Warm, natural wood glow
+        emissiveIntensity: 0.3, // Moderate intensity for natural light wood
         toneMapped: true,
-        // Light natural wood tint instead of pure white
-        color: 0xffeedd // Warm, light wood tint (not pure white)
+        // Natural light wood tint - warm and light
+        color: 0xffeecc // Warm, natural light wood tint
       }
     : { 
-        // Natural light wood-colored fallback
+        // Natural light wood-colored fallback - brighter than dividers
         color: [
-          Math.min((selectedWood?.baseColor?.r || 0.92) * 1.2, 1.0), // 20% brighter natural wood
-          Math.min((selectedWood?.baseColor?.g || 0.85) * 1.15, 1.0), 
-          Math.min((selectedWood?.baseColor?.b || 0.75) * 1.1, 1.0)
+          Math.min((selectedWood?.baseColor?.r || 0.90) * 1.3, 1.0), // 30% brighter for light wood
+          Math.min((selectedWood?.baseColor?.g || 0.82) * 1.25, 1.0), 
+          Math.min((selectedWood?.baseColor?.b || 0.70) * 1.2, 1.0)
         ], 
-        roughness: 0.4, 
-        metalness: 0.02,
-        emissive: 0x221100,
-        emissiveIntensity: 0.2
+        roughness: 0.3, 
+        metalness: 0.01,
+        emissive: 0x332211,
+        emissiveIntensity: 0.3
       };
 
-  console.log('🏗️ BaseSheet (NATURAL LIGHT WOOD):', {
+  console.log('🏗️ BaseSheet (NATURAL LIGHT WOOD - Enhanced):', {
     hasTexture: !!baseTexture,
     selectedWood: selectedWood?.name,
-    appearance: 'natural light wood color',
-    textureUrl: baseTexture ? 'natural wood texture loaded' : 'natural light wood fallback',
-    materialProps: baseTexture ? 'with natural light wood tint' : 'natural light wood color'
+    appearance: 'natural light wood - lighter than dividers',
+    contrast: '30% brighter than dividers',
+    materialProps: baseTexture ? 'with enhanced light wood tint' : 'enhanced light wood color'
   });
 
   return (
@@ -135,37 +135,38 @@ const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, baseTe
   // Find the selected wood for fallback color
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
 
-  // Use natural darker wood material for dividers (darker than base)
+  // Use natural darker wood material for dividers - darker than light base
   const materialProps = baseTexture 
     ? { 
         map: baseTexture, 
-        roughness: 0.6, // Rougher than base for darker, more natural wood
-        metalness: 0.05, // Slightly more metallic for deeper wood look
+        roughness: 0.7, // Rougher for natural darker wood appearance
+        metalness: 0.08, // Slightly more metallic for deeper wood look
         transparent: false,
         // No emissive light to keep them naturally darker than base
-        emissive: 0x000000, // No artificial glow
+        emissive: 0x000000, // No artificial glow for darker wood
         emissiveIntensity: 0,
         toneMapped: true,
-        // Natural darker wood tint
-        color: 0xddccaa // Darker, natural wood tint
+        // Natural darker wood tint - warm but darker
+        color: 0xccaa88 // Natural darker wood tint
       }
     : { 
-        // Natural darker wood-colored fallback
+        // Natural darker wood-colored fallback - clearly darker than base
         color: [
-          (selectedWood?.baseColor?.r || 0.85) * 0.9, // 10% darker than base natural wood
-          (selectedWood?.baseColor?.g || 0.78) * 0.9, 
-          (selectedWood?.baseColor?.b || 0.68) * 0.9
+          (selectedWood?.baseColor?.r || 0.80) * 0.8, // 20% darker than base for clear contrast
+          (selectedWood?.baseColor?.g || 0.72) * 0.8, 
+          (selectedWood?.baseColor?.b || 0.60) * 0.8
         ], 
-        roughness: 0.6, 
-        metalness: 0.05,
+        roughness: 0.7, 
+        metalness: 0.08,
         emissive: 0x000000,
         emissiveIntensity: 0
       };
 
-  console.log('🧱 DividerWall (NATURAL DARK WOOD):', {
+  console.log('🧱 DividerWall (NATURAL DARK WOOD - Enhanced):', {
     hasTexture: !!baseTexture,
     selectedWood: selectedWood?.name,
-    appearance: 'natural dark wood (darker than base)'
+    appearance: 'natural dark wood - darker than base',
+    contrast: '20% darker than base for clear contrast'
   });
 
   return (
@@ -187,10 +188,11 @@ const DrawerScene = ({ selectedWoodType, dimensions, blocks, splitLines, woodTyp
     RepeatWrapping
   );
 
-  console.log('🎬 Scene textures - Natural wood with light base + dark dividers:', {
-    baseTexture: !!baseTexture ? '✅ Natural Light Wood' : '⏳ Loading...',
-    dividerTexture: !!baseTexture ? '✅ Natural Dark Wood' : '⏳ Loading...',
-    selectedWood: selectedWoodType
+  console.log('🎬 Scene textures - Enhanced natural wood contrast:', {
+    baseTexture: !!baseTexture ? '✅ Enhanced Light Wood (30% brighter)' : '⏳ Loading...',
+    dividerTexture: !!baseTexture ? '✅ Enhanced Dark Wood (20% darker)' : '⏳ Loading...',
+    selectedWood: selectedWoodType,
+    contrast: 'Base lighter than dividers - natural wood tones'
   });
 
   return (
@@ -312,7 +314,7 @@ const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
         <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
         <div className="flex flex-col">
           <span>Processing {selectedWood?.name} texture... {progress}%</span>
-          <span className="text-gray-300 text-xs">Natural light base + Natural dark dividers + Shadows</span>
+          <span className="text-gray-300 text-xs">Enhanced: Light base + Dark dividers + Shadows</span>
         </div>
       </div>
     </div>
