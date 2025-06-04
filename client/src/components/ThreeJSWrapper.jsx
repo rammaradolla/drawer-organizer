@@ -94,20 +94,22 @@ const useDirectTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrap
         // Apply directly to existing materials
         if (baseMaterialRef.current) {
           baseMaterialRef.current.map = baseTexture;
-          baseMaterialRef.current.color.setHex(0xffffff); // Pure white
-          baseMaterialRef.current.emissive.setHex(0x000000); // No emissive
-          baseMaterialRef.current.emissiveIntensity = 0;
+          baseMaterialRef.current.color.setHex(0xf5e6d3); // Natural wood color
+          baseMaterialRef.current.emissive.setHex(0x332211); // Warm glow
+          baseMaterialRef.current.emissiveIntensity = 0.1;
+          baseMaterialRef.current.roughness = 0.4;
           baseMaterialRef.current.needsUpdate = true;
-          console.log('🎯 BASE MATERIAL UPDATED DIRECTLY');
+          console.log('🎯 BASE MATERIAL UPDATED - Natural Wood Color Applied');
         }
 
         // Apply to all divider materials
         dividerMaterialRefs.current.forEach(material => {
           if (material) {
             material.map = dividerTexture;
-            material.color.setHex(0xaa8866); // Dark wood tint
-            material.emissive.setHex(0x000000);
-            material.emissiveIntensity = 0;
+            material.color.setHex(0xc4966b); // Complementary dark wood tone
+            material.emissive.setHex(0x221100); // Subtle dark glow
+            material.emissiveIntensity = 0.05;
+            material.roughness = 0.6;
             material.needsUpdate = true;
           }
         });
@@ -131,23 +133,27 @@ const useDirectTexture = (selectedWoodType, woodTypes, TextureLoader, RepeatWrap
   };
 };
 
-// Enhanced BaseSheet with direct material reference
+// Enhanced BaseSheet with natural wood color matching user's sample
 const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseMaterialRef, baseTexture }) => {
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
   const baseThickness = 0.25;
   
-  // Material properties optimized for texture visibility
+  // Natural wood color matching the user's sample - warm creamy beige
+  const naturalWoodColor = 0xf5e6d3; // Warm, creamy beige like the sample image
+  
+  // Material properties optimized for natural wood appearance
   const materialProps = {
     map: baseTexture,
-    color: baseTexture ? 0xffffff : [
-      Math.min((selectedWood?.baseColor?.r || 0.92) * 1.4, 1.0),
-      Math.min((selectedWood?.baseColor?.g || 0.85) * 1.3, 1.0),
-      Math.min((selectedWood?.baseColor?.b || 0.75) * 1.25, 1.0)
+    color: baseTexture ? naturalWoodColor : [
+      // Fallback colors that also match the natural wood tone
+      0.96, // Warm light
+      0.90, // Slight cream tint
+      0.83  // Beige undertone
     ],
-    roughness: 0.3,
-    metalness: 0.02,
-    emissive: 0x000000,
-    emissiveIntensity: 0,
+    roughness: 0.4, // Slightly more texture for realism
+    metalness: 0.01, // Very minimal for natural wood
+    emissive: 0x332211, // Subtle warm glow
+    emissiveIntensity: 0.1, // Very gentle
     transparent: false,
     toneMapped: true
   };
@@ -155,14 +161,23 @@ const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseMaterialRef, b
   const handleMaterialRef = (material) => {
     if (material) {
       baseMaterialRef.current = material;
-      console.log('🏗️ BASE MATERIAL REF SET - Direct updates enabled');
+      // Apply the natural wood color immediately
+      if (baseTexture) {
+        material.color.setHex(naturalWoodColor);
+        material.needsUpdate = true;
+      }
+      console.log('🏗️ BASE MATERIAL - Natural Wood Color Applied:', {
+        color: naturalWoodColor.toString(16),
+        hasTexture: !!baseTexture
+      });
     }
   };
 
-  console.log('🏗️ BaseSheet - DIRECT TEXTURE MODE:', {
+  console.log('🏗️ BaseSheet - NATURAL WOOD COLOR MODE:', {
     hasTexture: !!baseTexture,
     selectedWood: selectedWood?.name,
-    materialMode: baseTexture ? 'DIRECT TEXTURE APPLICATION' : 'FALLBACK COLORS'
+    naturalColor: '#f5e6d3 (warm creamy beige)',
+    materialMode: baseTexture ? 'TEXTURE + NATURAL COLOR' : 'NATURAL FALLBACK COLORS'
   });
 
   return (
@@ -173,22 +188,26 @@ const BaseSheet = ({ dimensions, selectedWoodType, woodTypes, baseMaterialRef, b
   );
 };
 
-// Enhanced DividerWall with direct material reference
+// Enhanced DividerWall with very light cream wood tone matching user's latest sample
 const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, dividerMaterialRefs, baseTexture }) => {
   const selectedWood = woodTypes.find(w => w.id === selectedWoodType) || woodTypes[0];
 
-  // Material properties for dividers
+  // Light warm wood color matching the user's attached sample
+  const lightWarmWoodColor = 0xf0e6d8; // Light wood with warm creamy undertones
+  
+  // Material properties for dividers - light with warm tone
   const materialProps = {
     map: baseTexture,
-    color: baseTexture ? 0xaa8866 : [
-      (selectedWood?.baseColor?.r || 0.75) * 0.7,
-      (selectedWood?.baseColor?.g || 0.68) * 0.7,
-      (selectedWood?.baseColor?.b || 0.55) * 0.7
+    color: baseTexture ? lightWarmWoodColor : [
+      // Fallback light warm colors
+      0.94, // Light tone
+      0.90, // Warm cream saturation
+      0.85  // Warm beige undertone
     ],
-    roughness: 0.6,
-    metalness: 0.05,
-    emissive: 0x000000,
-    emissiveIntensity: 0,
+    roughness: 0.42, // Smooth with slight texture
+    metalness: 0.008, // Minimal metalness
+    emissive: 0x554433, // Warm glow to enhance the warmth
+    emissiveIntensity: 0.015, // Subtle warm glow
     transparent: false,
     toneMapped: true
   };
@@ -196,7 +215,15 @@ const DividerWall = ({ position, dimensions, selectedWoodType, woodTypes, divide
   const handleMaterialRef = (material) => {
     if (material) {
       dividerMaterialRefs.current.add(material);
-      console.log('🧱 DIVIDER MATERIAL REF ADDED - Direct updates enabled');
+      // Apply the light warm wood color immediately
+      if (baseTexture) {
+        material.color.setHex(lightWarmWoodColor);
+        material.needsUpdate = true;
+      }
+      console.log('🧱 DIVIDER MATERIAL - Light Warm Wood Applied:', {
+        color: lightWarmWoodColor.toString(16),
+        hasTexture: !!baseTexture
+      });
     }
   };
 
