@@ -60,115 +60,6 @@ const GRID_SIZE = 0.25 * PIXELS_PER_INCH; // Grid size is 0.25 inches
 const PADDING = 40; // Padding around the canvas
 const MIN_SIZE = 0.5 * PIXELS_PER_INCH; // Minimum size is 0.5 inches
 
-// Updated Wood Texture Selector Component with dynamic texture loading
-const WoodTextureSelector = ({ selectedWoodType, onWoodTypeChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const handleWoodTypeSelect = (textureId) => {
-    console.log('Texture selected:', textureId);
-    onWoodTypeChange(textureId);
-    setIsOpen(false);
-  };
-
-  const selectedTexture = availableTextures.find(t => t.id === selectedWoodType) || availableTextures[0];
-  
-  console.log('WoodTextureSelector - selectedWoodType:', selectedWoodType);
-  console.log('WoodTextureSelector - selectedTexture:', selectedTexture);
-  console.log('WoodTextureSelector - availableTextures in component:', availableTextures);
-
-  return (
-    <div className="relative flex items-center space-x-2 flex-shrink-0">
-      <label className="text-sm font-medium text-slate-700">Wood Texture</label>
-      
-      {/* Current Selection Display */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-3 py-2 border border-slate-300 rounded-md bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      >
-        <div className="w-8 h-8 rounded border border-slate-200 overflow-hidden flex-shrink-0 bg-gray-200">
-          <img 
-            src={selectedTexture.url} 
-            alt={`${selectedTexture.name} texture`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-        </div>
-        <span className="text-sm font-medium text-slate-900 min-w-0">
-          {selectedTexture.name}
-        </span>
-        <svg 
-          className={`w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {/* Dropdown Panel */}
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-1 w-96 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-          <div className="p-3">
-            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">
-              Available Wood Textures ({availableTextures.length})
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {availableTextures.map((texture) => (
-                <button
-                  key={texture.id}
-                  onClick={() => handleWoodTypeSelect(texture.id)}
-                  className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
-                    selectedWoodType === texture.id 
-                      ? 'bg-blue-50 border-2 border-blue-200' 
-                      : 'hover:bg-slate-50 border-2 border-transparent'
-                  }`}
-                >
-                  <div className="w-16 h-16 rounded border border-slate-200 overflow-hidden flex-shrink-0 bg-gray-200">
-                    <img 
-                      src={texture.url} 
-                      alt={`${texture.name} texture`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.error('Failed to load texture preview:', texture.url);
-                        e.target.style.display = 'none';
-                      }}
-                      onLoad={() => {
-                        console.log('Texture preview loaded:', texture.name);
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="text-sm font-medium text-slate-900 truncate">
-                      {texture.name}
-                    </div>
-                    <div className="text-xs text-slate-500 truncate">
-                      {texture.filename}
-                    </div>
-                    <div className="text-xs text-slate-400 truncate">
-                      ID: {texture.id}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Click outside to close */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-    </div>
-  );
-};
-
 const DimensionArrow = ({ start, end, label, offset = 20 }) => {
   const isHorizontal = start.y === end.y;
   const totalLength = isHorizontal ? Math.abs(end.x - start.x) : Math.abs(end.y - start.y);
@@ -671,12 +562,6 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
   return (
     <div className="flex flex-col w-full h-full min-h-screen overflow-hidden bg-slate-50" ref={containerRef}>
       <div className="flex items-center gap-2 mb-4 px-3 py-3 bg-white shadow-sm border-b border-slate-200 overflow-x-auto">
-        {/* Wood Type Selector and Controls */}
-        <WoodTextureSelector 
-          selectedWoodType={selectedWoodType}
-          onWoodTypeChange={setSelectedWoodType}
-        />
-
         {/* Compartment Controls - aligned with dropdown */}
         <div className="flex items-end space-x-1 flex-shrink-0" style={{ paddingBottom: '1px' }}>
           <button
