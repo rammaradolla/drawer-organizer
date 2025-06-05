@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import DrawerSetup from './components/DrawerSetup';
 import CanvasEditor from './components/CanvasEditor';
 import OrderForm from './components/OrderForm';
+import Cart from './components/Cart';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -17,6 +18,8 @@ function App() {
   const [compartments, setCompartments] = useState([]);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+  const canvasEditorRef = useRef();
 
   const calculatePrice = () => {
     // Calculate total area of compartments in square inches
@@ -94,6 +97,12 @@ function App() {
     setShowOrderForm(false);
   };
 
+  const handleEditorClear = () => {
+    if (canvasEditorRef.current) {
+      canvasEditorRef.current.handleClear();
+    }
+  };
+
   const totalPrice = calculatePrice();
 
   return (
@@ -103,21 +112,30 @@ function App() {
           Drawer Organizer Designer
         </h1>
 
-        <div className="flex gap-6">
-          {/* Left sidebar with dimensions */}
-          <div className="w-80 flex-shrink-0">
+        <div className="flex flex-col md:flex-row w-full h-full">
+          {/* Dimensions Sidebar */}
+          <div className="w-full md:w-1/5 lg:w-1/6 bg-white rounded-lg shadow-md p-4 mr-4 mb-4 md:mb-0">
             <DrawerSetup
               dimensions={dimensions}
               onDimensionsSet={setDimensions}
             />
           </div>
-
-          {/* Right side canvas */}
-          <div className="flex-1 bg-white rounded-lg shadow-lg p-4">
+          {/* Main Editor */}
+          <div className="flex-1">
             <CanvasEditor
+              key={resetKey}
+              ref={canvasEditorRef}
               dimensions={dimensions}
               onCompartmentsChange={setCompartments}
+              onClear={handleEditorClear}
+              addToCartButtonProps={{
+                onReset: handleEditorClear
+              }}
             />
+          </div>
+          {/* Cart Sidebar */}
+          <div className="w-full md:w-1/3 bg-gray-50 border-l border-gray-200">
+            <Cart />
           </div>
         </div>
 

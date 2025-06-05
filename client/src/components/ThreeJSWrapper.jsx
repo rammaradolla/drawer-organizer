@@ -394,7 +394,7 @@ const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
 };
 
 // Main wrapper component
-const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, woodTypes }) => {
+const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, woodTypes, threeRenderer }) => {
   const [threeJS, setThreeJS] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -502,6 +502,9 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
               gl.setClearColor('#f8fafc', 1);
               gl.shadowMap.enabled = true;
               gl.shadowMap.type = gl.PCFSoftShadowMap;
+              if (threeRenderer) {
+                threeRenderer.current = gl;
+              }
             }}
             style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
           >

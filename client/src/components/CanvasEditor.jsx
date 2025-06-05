@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Stage, Layer, Rect, Line, Group, Text, Arrow } from 'react-konva';
 import ThreeJSWrapper from './ThreeJSWrapper';
+import AddToCartButton from './AddToCartButton';
 
 // Dynamic texture loading from public/textures directory
 const loadAvailableTextures = () => {
@@ -187,7 +188,7 @@ const DimensionArrow = ({ start, end, label, offset = 20 }) => {
   );
 };
 
-const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
+const CanvasEditor = forwardRef(({ dimensions, onCompartmentsChange, onClear }, ref) => {
   const [blocks, setBlocks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [scale, setScale] = useState(1);
@@ -203,6 +204,8 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
   
   const stageRef = useRef();
   const containerRef = useRef();
+  const threeRenderer = useRef(); // Add this ref for 3D renderer
+  const defaultDesignState = { blocks: [], splitLines: [] };
 
   // Convert drawer dimensions from inches to pixels
   const baseWidth = dimensions.width * PIXELS_PER_INCH;
@@ -259,6 +262,8 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
   }, [baseWidth, baseHeight]);
 
   const initializeCanvas = () => {
+    const baseWidth = dimensions.width * PIXELS_PER_INCH;
+    const baseHeight = dimensions.depth * PIXELS_PER_INCH;
     const initialBlocks = [{
       id: 'initial',
       x: 0,
@@ -266,15 +271,12 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
       width: baseWidth,
       height: baseHeight,
     }];
-    
     setBlocks(initialBlocks);
     setSplitLines([]);
     setSelectedId(null);
     setDraggedLine(null);
     setAffectedBlocks([]);
     setOriginalLinePosition(null);
-    
-    // Reset history
     setHistory([{
       blocks: JSON.parse(JSON.stringify(initialBlocks)),
       splitLines: []
@@ -552,15 +554,37 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
   };
 
   const handleClear = () => {
+    console.log('[CanvasEditor] handleClear called');
     initializeCanvas();
     onCompartmentsChange && onCompartmentsChange([]);
+    if (onClear) onClear();
   };
 
   // Convert pixels to inches for display
   const pixelsToInches = (pixels) => (pixels / PIXELS_PER_INCH).toFixed(2);
 
+  useImperativeHandle(ref, () => ({
+    initializeCanvas,
+    handleClear
+  }));
+
   return (
     <div className="flex flex-col w-full h-full min-h-screen overflow-hidden bg-slate-50" ref={containerRef}>
+      {/* AddToCartButton placed above canvases for visibility */}
+      <div className="flex justify-end p-3">
+        <AddToCartButton
+          design2DRef={stageRef}
+          threeRenderer={threeRenderer}
+          designState={{ blocks, splitLines }}
+          setDesignState={(state) => {
+            setBlocks(state.blocks);
+            setSplitLines(state.splitLines);
+          }}
+          defaultDesignState={defaultDesignState}
+          dimensions={dimensions}
+          layout={{ blocks, splitLines, selectedWoodType }}
+        />
+      </div>
       <div className="flex items-center gap-2 mb-4 px-3 py-3 bg-white shadow-sm border-b border-slate-200 overflow-x-auto">
         {/* Compartment Controls - aligned with dropdown */}
         <div className="flex items-end space-x-1 flex-shrink-0" style={{ paddingBottom: '1px' }}>
@@ -813,6 +837,7 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
               blocks={blocks}
               splitLines={splitLines}
               woodTypes={availableTextures}
+              threeRenderer={threeRenderer}
             />
             
             <div className="text-xs text-slate-600 mt-3 space-y-1">
@@ -829,6 +854,6 @@ const CanvasEditor = ({ dimensions, onCompartmentsChange }) => {
       </div>
     </div>
   );
-};
+});
 
 export default CanvasEditor; 
