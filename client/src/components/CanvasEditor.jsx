@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } f
 import { Stage, Layer, Rect, Line, Group, Text, Arrow } from 'react-konva';
 import ThreeJSWrapper from './ThreeJSWrapper';
 import AddToCartButton from './AddToCartButton';
+import DrawerSetup from './DrawerSetup';
 
 // Dynamic texture loading from public/textures directory
 const loadAvailableTextures = () => {
@@ -188,7 +189,8 @@ const DimensionArrow = ({ start, end, label, offset = 20 }) => {
   );
 };
 
-const CanvasEditor = forwardRef(({ dimensions, onCompartmentsChange, onClear }, ref) => {
+const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButtonProps }, ref) => {
+  const [dimensions, setDimensions] = useState({ width: 30, depth: 20, height: 6 });
   const [blocks, setBlocks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [scale, setScale] = useState(1);
@@ -286,10 +288,8 @@ const CanvasEditor = forwardRef(({ dimensions, onCompartmentsChange, onClear }, 
 
   // Set fixed scale for canvas
   useEffect(() => {
-    // Fixed scale - not responsive
-    const fixedScale = 1.5; // Adjust this value as needed for desired canvas size
-    setScale(fixedScale);
-  }, [baseWidth, baseHeight]);
+    setScale(1); // Always use 100% scale
+  }, [dimensions.width, dimensions.depth]);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -569,284 +569,290 @@ const CanvasEditor = forwardRef(({ dimensions, onCompartmentsChange, onClear }, 
   }));
 
   return (
-    <div className="flex flex-col w-full h-full min-h-screen overflow-hidden bg-slate-50" ref={containerRef}>
-      {/* AddToCartButton placed above canvases for visibility */}
-      <div className="flex justify-end p-3">
-        <AddToCartButton
-          design2DRef={stageRef}
-          threeRenderer={threeRenderer}
-          designState={{ blocks, splitLines }}
-          setDesignState={(state) => {
-            setBlocks(state.blocks);
-            setSplitLines(state.splitLines);
-          }}
-          defaultDesignState={defaultDesignState}
-          dimensions={dimensions}
-          layout={{ blocks, splitLines, selectedWoodType }}
-        />
-      </div>
-      <div className="flex items-center gap-2 mb-4 px-3 py-3 bg-white shadow-sm border-b border-slate-200 overflow-x-auto">
-        {/* Compartment Controls - aligned with dropdown */}
-        <div className="flex items-end space-x-1 flex-shrink-0" style={{ paddingBottom: '1px' }}>
-          <button
-            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-            onClick={addRow}
-            disabled={!selectedId}
-          >
-            Add Row
-          </button>
-          <button
-            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-            onClick={addColumn}
-            disabled={!selectedId}
-          >
-            Add Column
-          </button>
-          <button
-            className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm"
-            onClick={handleClear}
-          >
-            Clear All
-          </button>
-        </div>
-
-        {/* History Controls - aligned with dropdown */}
-        <div className="flex items-end space-x-1 border-l border-slate-300 pl-2 flex-shrink-0" style={{ paddingBottom: '1px' }}>
-          <button
-            className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
-            onClick={handleUndo}
-            disabled={historyIndex <= 0}
-            title="Undo (Ctrl+Z)"
-          >
-            ↶ Undo
-          </button>
-          <button
-            className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
-            onClick={handleRedo}
-            disabled={historyIndex >= history.length - 1}
-            title="Redo (Ctrl+Y)"
-          >
-            ↷ Redo
-          </button>
-        </div>
-
-        {/* Dimensions Info */}
-        <div className="ml-auto text-sm text-slate-600 flex-shrink-0 whitespace-nowrap">
-          <span className="font-medium text-slate-800">Dimensions:</span> {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"
+    <div className="flex flex-col w-full h-full">
+      {/* DrawerSetup at the top, managed by CanvasEditor */}
+      <div className="mb-4">
+        <div className="flex flex-row items-end gap-6 w-full">
+          <DrawerSetup
+            dimensions={dimensions}
+            onDimensionsSet={setDimensions}
+          />
+          <div className="flex items-end ml-8">
+            <AddToCartButton
+              design2DRef={stageRef}
+              threeRenderer={threeRenderer}
+              designState={{ blocks, splitLines }}
+              setDesignState={(state) => {
+                setBlocks(state.blocks);
+                setSplitLines(state.splitLines);
+              }}
+              defaultDesignState={defaultDesignState}
+              dimensions={dimensions}
+              layout={{ blocks, splitLines, selectedWoodType }}
+              className="w-32 h-16 text-lg"
+            />
+          </div>
         </div>
       </div>
-      
-      <div className="flex gap-3 w-full h-full flex-1 px-3 overflow-hidden">
-        {/* 2D Canvas */}
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-slate-900">2D Design</h3>
-            </div>
-            
-            <div className="relative">
-              <div 
-                ref={containerRef} 
-                className="w-full overflow-hidden border-2 border-slate-300 cursor-grab active:cursor-grabbing flex items-center justify-center bg-slate-50" 
-                style={{ minHeight: '300px', maxHeight: '60vh' }}
-              >
-                <Stage
-                  width={baseWidth * scale}
-                  height={baseHeight * scale}
-                  ref={stageRef}
-                  scaleX={scale}
-                  scaleY={scale}
-                  onClick={(e) => {
-                    if (e.target === e.target.getStage()) {
-                      setSelectedId(null);
-                    }
-                  }}
-                >
-                  <Layer>
-                    {/* Draw grid */}
-                    {Array.from({ length: baseWidth / GRID_SIZE + 1 }).map((_, i) => (
-                      <Line
-                        key={`v${i}`}
-                        points={[i * GRID_SIZE, 0, i * GRID_SIZE, baseHeight]}
-                        stroke={i % 4 === 0 ? "#e5e5e5" : "#f0f0f0"}
-                        strokeWidth={i % 4 === 0 ? 0.3 : 0.1}
-                      />
-                    ))}
-                    {Array.from({ length: baseHeight / GRID_SIZE + 1 }).map((_, i) => (
-                      <Line
-                        key={`h${i}`}
-                        points={[0, i * GRID_SIZE, baseWidth, i * GRID_SIZE]}
-                        stroke={i % 4 === 0 ? "#e5e5e5" : "#f0f0f0"}
-                        strokeWidth={i % 4 === 0 ? 0.3 : 0.1}
-                      />
-                    ))}
+      <div className="flex flex-col w-full h-full min-h-screen overflow-hidden bg-slate-50" ref={containerRef}>
+        <div className="flex items-center gap-2 mb-4 px-3 py-3 bg-white shadow-sm border-b border-slate-200 overflow-x-auto">
+          {/* Compartment Controls - aligned with dropdown */}
+          <div className="flex items-end space-x-1 flex-shrink-0" style={{ paddingBottom: '1px' }}>
+            <button
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+              onClick={addRow}
+              disabled={!selectedId}
+            >
+              Add Row
+            </button>
+            <button
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+              onClick={addColumn}
+              disabled={!selectedId}
+            >
+              Add Column
+            </button>
+            <button
+              className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm"
+              onClick={handleClear}
+            >
+              Clear All
+            </button>
+          </div>
 
-                    {/* Draw boundary */}
-                    <Rect
-                      x={0}
-                      y={0}
-                      width={baseWidth}
-                      height={baseHeight}
-                      stroke="#333"
-                      strokeWidth={2}
-                      fill="transparent"
-                    />
-                    
-                    {/* Clipping rectangle for all content inside the drawer */}
-                    <Group clipFunc={(ctx) => {
-                      ctx.beginPath();
-                      ctx.rect(0, 0, baseWidth, baseHeight);
-                      ctx.clip();
-                    }}>
-                      
-                      {/* Draw blocks */}
-                      {blocks.map((block) => {
-                        const isAffected = affectedBlocks.find(b => b.id === block.id);
-                        const isSelected = selectedId === block.id;
-                        
-                        return (
-                          <Group key={block.id}>
-                            <Rect
-                              x={block.x}
-                              y={block.y}
-                              width={block.width}
-                              height={block.height}
-                              onClick={() => setSelectedId(block.id)}
-                              onTap={() => setSelectedId(block.id)}
-                              fill={isSelected ? "#FFA500" : (isAffected ? "#7EB6E6" : "#9BC3E9")}
-                              stroke={isSelected ? "#FF8C00" : "#64748B"}
-                              strokeWidth={isSelected ? 3 : (isAffected ? 3 : 2)}
-                            />
-                            <Text
-                              x={block.x + block.width / 2}
-                              y={block.y + block.height / 2}
-                              text={`W: ${pixelsToInches(block.width)}"\nD: ${pixelsToInches(block.height)}"`}
-                              fontSize={8}
-                              fill="#333"
-                              align="center"
-                              verticalAlign="middle"
-                              width={block.width - 4}
-                              height={block.height - 4}
-                              offsetX={(block.width - 4) / 2}
-                              offsetY={(block.height - 4) / 2}
-                              listening={false}
-                            />
-                          </Group>
-                        );
-                      })}
-                      
-                      {/* Draw split lines */}
-                      {splitLines.map((line) => {
-                        const isDragging = draggedLine?.id === line.id;
-                        
-                        return (
-                          <Line
-                            key={line.id}
-                            x={line.isHorizontal ? line.x1 : line.x1}
-                            y={line.isHorizontal ? line.y1 : line.y1}
-                            points={line.isHorizontal ? [0, 0, line.x2 - line.x1, 0] : [0, 0, 0, line.y2 - line.y1]}
-                            stroke={isDragging ? "#1E40AF" : "#2563EB"}
-                            strokeWidth={isDragging ? 6 : 4}
-                            draggable
-                            perfectDrawEnabled={false}
-                            onDragStart={(e) => handleSplitLineDragStart(e, line)}
-                            onDragEnd={(e) => handleSplitLineDragEnd(e, line)}
-                            dragBoundFunc={(pos) => {
-                              const snappedX = snapToGrid(pos.x);
-                              const snappedY = snapToGrid(pos.y);
-                              
-                              if (line.isHorizontal) {
-                                // Find the blocks that this specific line divides
-                                const affectedBlocks = findAffectedBlocks(line);
-                                const blocksAbove = affectedBlocks.filter(b => Math.abs(b.y + b.height - line.y1) < 1);
-                                const blocksBelow = affectedBlocks.filter(b => Math.abs(b.y - line.y1) < 1);
-                                
-                                // Get the vertical bounds from the affected blocks only
-                                let minY = line.y1;
-                                let maxY = line.y1;
-                                
-                                if (blocksAbove.length > 0 && blocksBelow.length > 0) {
-                                  const topBounds = Math.max(...blocksAbove.map(b => b.y + MIN_SIZE));
-                                  const bottomBounds = Math.min(...blocksBelow.map(b => b.y + b.height - MIN_SIZE));
-                                  minY = topBounds;
-                                  maxY = bottomBounds;
-                                }
-                                
-                                const constrainedY = Math.max(minY, Math.min(maxY, snappedY));
-                                return { x: line.x1, y: constrainedY };
-                              } else {
-                                // Find the blocks that this specific line divides
-                                const affectedBlocks = findAffectedBlocks(line);
-                                const blocksLeft = affectedBlocks.filter(b => Math.abs(b.x + b.width - line.x1) < 1);
-                                const blocksRight = affectedBlocks.filter(b => Math.abs(b.x - line.x1) < 1);
-                                
-                                // Get the horizontal bounds from the affected blocks only
-                                let minX = line.x1;
-                                let maxX = line.x1;
-                                
-                                if (blocksLeft.length > 0 && blocksRight.length > 0) {
-                                  const leftBounds = Math.max(...blocksLeft.map(b => b.x + MIN_SIZE));
-                                  const rightBounds = Math.min(...blocksRight.map(b => b.x + b.width - MIN_SIZE));
-                                  minX = leftBounds;
-                                  maxX = rightBounds;
-                                }
-                                
-                                const constrainedX = Math.max(minX, Math.min(maxX, snappedX));
-                                return { x: constrainedX, y: line.y1 };
-                              }
-                            }}
-                          />
-                        );
-                      })}
-                    </Group>
-                  </Layer>
-                </Stage>
+          {/* History Controls - aligned with dropdown */}
+          <div className="flex items-end space-x-1 border-l border-slate-300 pl-2 flex-shrink-0" style={{ paddingBottom: '1px' }}>
+            <button
+              className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+              onClick={handleUndo}
+              disabled={historyIndex <= 0}
+              title="Undo (Ctrl+Z)"
+            >
+              ↶ Undo
+            </button>
+            <button
+              className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+              onClick={handleRedo}
+              disabled={historyIndex >= history.length - 1}
+              title="Redo (Ctrl+Y)"
+            >
+              ↷ Redo
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex flex-row gap-6 w-full h-full flex-1 px-0 overflow-hidden">
+          {/* 2D Canvas */}
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-semibold text-slate-900">2D Design</h3>
               </div>
               
-              <div className="text-xs text-slate-600 mt-3 space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-medium">Selected Wood: {availableTextures.find(t => t.id === selectedWoodType)?.name}</span>
-                  <span>Scale: {Math.round(scale * 100)}%</span>
+              <div className="relative">
+                <div 
+                  ref={containerRef} 
+                  className="w-full overflow-hidden border-2 border-slate-300 cursor-grab active:cursor-grabbing flex items-center justify-center bg-slate-50" 
+                  style={{ minHeight: '300px', maxHeight: '60vh' }}
+                >
+                  <Stage
+                    width={baseWidth * scale}
+                    height={baseHeight * scale}
+                    ref={stageRef}
+                    scaleX={scale}
+                    scaleY={scale}
+                    onClick={(e) => {
+                      if (e.target === e.target.getStage()) {
+                        setSelectedId(null);
+                      }
+                    }}
+                  >
+                    <Layer>
+                      {/* Draw grid */}
+                      {Array.from({ length: baseWidth / GRID_SIZE + 1 }).map((_, i) => (
+                        <Line
+                          key={`v${i}`}
+                          points={[i * GRID_SIZE, 0, i * GRID_SIZE, baseHeight]}
+                          stroke={i % 4 === 0 ? "#e5e5e5" : "#f0f0f0"}
+                          strokeWidth={i % 4 === 0 ? 0.3 : 0.1}
+                        />
+                      ))}
+                      {Array.from({ length: baseHeight / GRID_SIZE + 1 }).map((_, i) => (
+                        <Line
+                          key={`h${i}`}
+                          points={[0, i * GRID_SIZE, baseWidth, i * GRID_SIZE]}
+                          stroke={i % 4 === 0 ? "#e5e5e5" : "#f0f0f0"}
+                          strokeWidth={i % 4 === 0 ? 0.3 : 0.1}
+                        />
+                      ))}
+
+                      {/* Draw boundary */}
+                      <Rect
+                        x={0}
+                        y={0}
+                        width={baseWidth}
+                        height={baseHeight}
+                        stroke="#333"
+                        strokeWidth={2}
+                        fill="transparent"
+                      />
+                      
+                      {/* Clipping rectangle for all content inside the drawer */}
+                      <Group clipFunc={(ctx) => {
+                        ctx.beginPath();
+                        ctx.rect(0, 0, baseWidth, baseHeight);
+                        ctx.clip();
+                      }}>
+                        
+                        {/* Draw blocks */}
+                        {blocks.map((block) => {
+                          const isAffected = affectedBlocks.find(b => b.id === block.id);
+                          const isSelected = selectedId === block.id;
+                          
+                          return (
+                            <Group key={block.id}>
+                              <Rect
+                                x={block.x}
+                                y={block.y}
+                                width={block.width}
+                                height={block.height}
+                                onClick={() => setSelectedId(block.id)}
+                                onTap={() => setSelectedId(block.id)}
+                                fill={isSelected ? "#FFA500" : (isAffected ? "#7EB6E6" : "#9BC3E9")}
+                                stroke={isSelected ? "#FF8C00" : "#64748B"}
+                                strokeWidth={isSelected ? 3 : (isAffected ? 3 : 2)}
+                              />
+                              <Text
+                                x={block.x + block.width / 2}
+                                y={block.y + block.height / 2}
+                                text={`W: ${pixelsToInches(block.width)}"\nD: ${pixelsToInches(block.height)}"`}
+                                fontSize={8}
+                                fill="#333"
+                                align="center"
+                                verticalAlign="middle"
+                                width={block.width - 4}
+                                height={block.height - 4}
+                                offsetX={(block.width - 4) / 2}
+                                offsetY={(block.height - 4) / 2}
+                                listening={false}
+                              />
+                            </Group>
+                          );
+                        })}
+                        
+                        {/* Draw split lines */}
+                        {splitLines.map((line) => {
+                          const isDragging = draggedLine?.id === line.id;
+                          
+                          return (
+                            <Line
+                              key={line.id}
+                              x={line.isHorizontal ? line.x1 : line.x1}
+                              y={line.isHorizontal ? line.y1 : line.y1}
+                              points={line.isHorizontal ? [0, 0, line.x2 - line.x1, 0] : [0, 0, 0, line.y2 - line.y1]}
+                              stroke={isDragging ? "#1E40AF" : "#2563EB"}
+                              strokeWidth={isDragging ? 6 : 4}
+                              draggable
+                              perfectDrawEnabled={false}
+                              onDragStart={(e) => handleSplitLineDragStart(e, line)}
+                              onDragEnd={(e) => handleSplitLineDragEnd(e, line)}
+                              dragBoundFunc={(pos) => {
+                                const snappedX = snapToGrid(pos.x);
+                                const snappedY = snapToGrid(pos.y);
+                                
+                                if (line.isHorizontal) {
+                                  // Find the blocks that this specific line divides
+                                  const affectedBlocks = findAffectedBlocks(line);
+                                  const blocksAbove = affectedBlocks.filter(b => Math.abs(b.y + b.height - line.y1) < 1);
+                                  const blocksBelow = affectedBlocks.filter(b => Math.abs(b.y - line.y1) < 1);
+                                  
+                                  // Get the vertical bounds from the affected blocks only
+                                  let minY = line.y1;
+                                  let maxY = line.y1;
+                                  
+                                  if (blocksAbove.length > 0 && blocksBelow.length > 0) {
+                                    const topBounds = Math.max(...blocksAbove.map(b => b.y + MIN_SIZE));
+                                    const bottomBounds = Math.min(...blocksBelow.map(b => b.y + b.height - MIN_SIZE));
+                                    minY = topBounds;
+                                    maxY = bottomBounds;
+                                  }
+                                  
+                                  const constrainedY = Math.max(minY, Math.min(maxY, snappedY));
+                                  return { x: line.x1, y: constrainedY };
+                                } else {
+                                  // Find the blocks that this specific line divides
+                                  const affectedBlocks = findAffectedBlocks(line);
+                                  const blocksLeft = affectedBlocks.filter(b => Math.abs(b.x + b.width - line.x1) < 1);
+                                  const blocksRight = affectedBlocks.filter(b => Math.abs(b.x - line.x1) < 1);
+                                  
+                                  // Get the horizontal bounds from the affected blocks only
+                                  let minX = line.x1;
+                                  let maxX = line.x1;
+                                  
+                                  if (blocksLeft.length > 0 && blocksRight.length > 0) {
+                                    const leftBounds = Math.max(...blocksLeft.map(b => b.x + MIN_SIZE));
+                                    const rightBounds = Math.min(...blocksRight.map(b => b.x + b.width - MIN_SIZE));
+                                    minX = leftBounds;
+                                    maxX = rightBounds;
+                                  }
+                                  
+                                  const constrainedX = Math.max(minX, Math.min(maxX, snappedX));
+                                  return { x: constrainedX, y: line.y1 };
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </Group>
+                    </Layer>
+                  </Stage>
                 </div>
-                <div>
-                  <h4 className="text-sm font-medium text-slate-800 mb-2">Instructions</h4>
-                  <div className="text-slate-500 space-y-1">
-                    <div>• Click on any compartment to select it</div>
-                    <div>• Use "Add Row" to split horizontally</div>
-                    <div>• Use "Add Column" to split vertically</div>
-                    <div>• Drag the blue lines to adjust sizes</div>
-                    <div>• All measurements are in inches</div>
-                    <div>• Grid spacing is 0.25 inches</div>
+                
+                <div className="text-xs text-slate-600 mt-3 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
+                    <span>Scale: {Math.round(scale * 100)}%</span>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-800 mb-2">Instructions</h4>
+                    <div className="text-slate-500 space-y-1">
+                      <div>• Click on any compartment to select it</div>
+                      <div>• Use "Add Row" to split horizontally</div>
+                      <div>• Use "Add Column" to split vertically</div>
+                      <div>• Drag the blue lines to adjust sizes</div>
+                      <div>• All measurements are in inches</div>
+                      <div>• Grid spacing is 0.25 inches</div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* 3D Preview */}
-        <div className="flex-1 min-w-0 overflow-hidden">
-          <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold text-slate-900">3D Preview</h3>
-            </div>
-            
-            <ThreeJSWrapper 
-              selectedWoodType={selectedWoodType}
-              dimensions={dimensions}
-              blocks={blocks}
-              splitLines={splitLines}
-              woodTypes={availableTextures}
-              threeRenderer={threeRenderer}
-            />
-            
-            <div className="text-xs text-slate-600 mt-3 space-y-1">
-              <div className="flex justify-between">
-                <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
-                <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
+          {/* 3D Preview */}
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-semibold text-slate-900">3D Preview</h3>
               </div>
-              <div className="text-slate-500 text-center">
-                Interactive 3D Preview
+              
+              <ThreeJSWrapper 
+                selectedWoodType={selectedWoodType}
+                dimensions={dimensions}
+                blocks={blocks}
+                splitLines={splitLines}
+                woodTypes={availableTextures}
+                threeRenderer={threeRenderer}
+              />
+              
+              <div className="text-xs text-slate-600 mt-3 space-y-1">
+                <div className="flex justify-between">
+                  <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
+                  <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
+                </div>
+                <div className="text-slate-500 text-center">
+                  Interactive 3D Preview
+                </div>
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@ import DrawerSetup from './components/DrawerSetup';
 import CanvasEditor from './components/CanvasEditor';
 import OrderForm from './components/OrderForm';
 import Cart from './components/Cart';
+import { useSelector } from 'react-redux';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -20,6 +21,7 @@ function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const canvasEditorRef = useRef();
+  const cart = useSelector(state => state.cart);
 
   const calculatePrice = () => {
     // Calculate total area of compartments in square inches
@@ -107,25 +109,17 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
-      <div className="max-w-[1600px] mx-auto px-4">
+      <div className="w-full px-4">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
           Drawer Organizer Designer
         </h1>
 
-        <div className="flex flex-col md:flex-row w-full h-full">
-          {/* Dimensions Sidebar */}
-          <div className="w-full md:w-1/5 lg:w-1/6 bg-white rounded-lg shadow-md p-4 mr-4 mb-4 md:mb-0">
-            <DrawerSetup
-              dimensions={dimensions}
-              onDimensionsSet={setDimensions}
-            />
-          </div>
-          {/* Main Editor */}
-          <div className="flex-1">
+        <div className="flex flex-row w-full h-full">
+          {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
+          <div className="flex-[2_2_0%] min-w-0">
             <CanvasEditor
               key={resetKey}
               ref={canvasEditorRef}
-              dimensions={dimensions}
               onCompartmentsChange={setCompartments}
               onClear={handleEditorClear}
               addToCartButtonProps={{
@@ -134,33 +128,26 @@ function App() {
             />
           </div>
           {/* Cart Sidebar */}
-          <div className="w-full md:w-1/3 bg-gray-50 border-l border-gray-200">
+          <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
             <Cart />
+            {cart.length > 0 && (
+              <div className="p-4 mt-4 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-semibold">
+                    Total Price: ${totalPrice.toFixed(2)}
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowOrderForm(true)}
+                    disabled={compartments.length === 0}
+                  >
+                    Place Order
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="flex justify-between items-center mt-8">
-          <div className="flex items-center space-x-4">
-            <div className="text-lg font-semibold">
-              Total Price: ${totalPrice.toFixed(2)}
-            </div>
-            <button
-              className="btn btn-secondary"
-              onClick={handleExport}
-              disabled={isExporting || compartments.length === 0}
-            >
-              {isExporting ? 'Exporting...' : 'Export Design'}
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowOrderForm(true)}
-              disabled={compartments.length === 0}
-            >
-              Place Order
-            </button>
-          </div>
-        </div>
-
         {showOrderForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">

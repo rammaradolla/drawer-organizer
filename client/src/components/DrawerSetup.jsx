@@ -25,70 +25,40 @@ const DrawerSetup = ({ dimensions, onDimensionsSet }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">Drawer Dimensions</h2>
-      
-
-      <div className="space-y-4">
-        <div>
-          <label htmlFor="width" className="label">
-            Width (inches)
-          </label>
-          <div className="flex items-center space-x-2">
-            <input
-              type="number"
-              id="width"
-              name="width"
-              value={dimensions.width}
-              onChange={handleChange}
-              className="input flex-1"
-              min="0.25"
-              max={MAX_DIMENSION}
-              step="0.25"
-            />
-            <div className="text-sm text-gray-500">in</div>
-          </div>
-        </div>
-        
-        <div>
-          <label htmlFor="depth" className="label">
-            Depth (inches)
-          </label>
-          <div className="flex items-center space-x-2">
-            <input
-              type="number"
-              id="depth"
-              name="depth"
-              value={dimensions.depth}
-              onChange={handleChange}
-              className="input flex-1"
-              min="0.25"
-              max={MAX_DIMENSION}
-              step="0.25"
-            />
-            <div className="text-sm text-gray-500">in</div>
-          </div>
-        </div>
-        
-        <div>
-          <label htmlFor="height" className="label">
-            Height (inches)
-          </label>
-          <div className="flex items-center space-x-2">
-            <input
-              type="number"
-              id="height"
-              name="height"
-              value={dimensions.height}
-              onChange={handleChange}
-              className="input flex-1"
-              min="0.25"
-              max={MAX_DIMENSION}
-              step="0.25"
-            />
-            <div className="text-sm text-gray-500">in</div>
-          </div>
-        </div>
+    <div className="flex flex-row items-center gap-4 w-full">
+      <span className="font-semibold text-slate-700 mr-2">Dimentions (inches):</span>
+      <div className="flex flex-row items-center gap-1">
+        <label className="font-semibold text-slate-700 mr-1">Width</label>
+        <input
+          type="number"
+          value={dimensions.width}
+          min={1}
+          onChange={handleChange}
+          name="width"
+          className="w-16 px-2 py-1 border rounded"
+        />
+      </div>
+      <div className="flex flex-row items-center gap-1">
+        <label className="font-semibold text-slate-700 mr-1">Depth</label>
+        <input
+          type="number"
+          value={dimensions.depth}
+          min={1}
+          onChange={handleChange}
+          name="depth"
+          className="w-16 px-2 py-1 border rounded"
+        />
+      </div>
+      <div className="flex flex-row items-center gap-1">
+        <label className="font-semibold text-slate-700 mr-1">Height</label>
+        <input
+          type="number"
+          value={dimensions.height}
+          min={1}
+          onChange={handleChange}
+          name="height"
+          className="w-16 px-2 py-1 border rounded"
+        />
       </div>
     </div>
   );
