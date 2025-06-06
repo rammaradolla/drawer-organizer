@@ -4,6 +4,7 @@ import CanvasEditor from './components/CanvasEditor';
 import OrderForm from './components/OrderForm';
 import Cart from './components/Cart';
 import { useSelector } from 'react-redux';
+import InfoBanner from './components/InfoBanner';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -113,6 +114,8 @@ function App() {
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
           Drawer Organizer Designer
         </h1>
+
+        <InfoBanner />
 
         <div className="flex flex-row w-full h-full">
           {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
