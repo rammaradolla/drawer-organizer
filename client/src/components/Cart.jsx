@@ -9,6 +9,10 @@ export default function Cart() {
   if (!cart.length) {
     return (
       <div className="p-6 text-center text-slate-600 flex flex-col items-center justify-center h-full">
+        <img src="/images/how-to-measure.jpg" alt="How to Measure Inside Drawer Dimensions" className="w-full max-w-md mb-4 rounded shadow border bg-white" />
+        <div className="mb-3 text-base max-w-lg mx-auto text-blue-900 font-semibold">
+          Not sure what size you need? Use the guide above to measure your drawer's inner dimensions—width, depth, and height—for a perfect custom fit!
+        </div>
         <div className="text-2xl font-bold mb-4 text-blue-700">🛠️ Custom Drawer Organizers, Made for You!</div>
         <div className="flex flex-row gap-4 justify-center mb-4">
           <div className="flex flex-col items-center">
