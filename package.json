@@ -17,7 +17,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@reduxjs/toolkit": "^2.8.2"
+    "@reduxjs/toolkit": "^2.8.2",
+    "@supabase/supabase-js": "^2.50.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

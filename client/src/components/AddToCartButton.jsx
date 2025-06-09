@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { addCartItem } from '../redux/cartSlice';
+import { useUser } from './UserProvider';
 import { capture2DImage } from '../utils/capture2DImage';
 import { capture3DImage } from '../utils/capture3DImage';
-import { createCartItem } from '../utils/createCartItem';
-import { resetDesignPlayground } from '../utils/resetDesignPlayground';
+import {
+  dataUrlToBlob,
+  uploadPreviewImage,
+  insertDesign,
+  addToCart,
+  checkDesignInCart
+} from '../utils/supabaseDesigns';
 
 export default function AddToCartButton({
   design2DRef,
@@ -16,23 +20,51 @@ export default function AddToCartButton({
   layout,
   onReset
 }) {
-  const dispatch = useDispatch();
+  const { user } = useUser();
   const [loading, setLoading] = useState(false);
 
   const handleAddToCart = async () => {
+    if (!user) {
+      alert('You must be logged in to add to cart.');
+      return;
+    }
     setLoading(true);
     try {
-      const image2D = capture2DImage(design2DRef);
-      const image3D = capture3DImage(threeRenderer.current);
-      const cartItem = createCartItem({
-        dimensions,
-        layout,
-        image2D,
-        image3D
+      // 1. Prepare layout JSON
+      const jsonLayout = JSON.stringify(layout);
+      // 2. Check if design already in cart
+      const existingDesignId = await checkDesignInCart(user.id, jsonLayout);
+      if (existingDesignId) {
+        alert('This design is already in your cart.');
+        setLoading(false);
+        return;
+      }
+      // 3. Capture 3D preview as PNG dataURL and convert to Blob
+      const image3DDataUrl = capture3DImage(threeRenderer.current);
+      const image3DBlob = await dataUrlToBlob(image3DDataUrl);
+      // 4. Upload to Supabase Storage
+      const previewUrl = await uploadPreviewImage(user.id, image3DBlob);
+      // 5. Insert design
+      const dimensionsStr = `${dimensions.width}x${dimensions.depth}x${dimensions.height}`;
+      const woodType = layout.selectedWoodType;
+      console.log("Inserting design with:", {
+        userId: user.id,
+        jsonLayout,
+        woodType,
+        dimensions: dimensionsStr,
+        previewUrl,
       });
-      dispatch(addCartItem(cartItem));
-      console.log('[AddToCartButton] Calling onReset after add to cart');
+      const designId = await insertDesign({
+        userId: user.id,
+        jsonLayout,
+        woodType,
+        dimensions: dimensionsStr,
+        previewUrl,
+      });
+      // 6. Add to cart
+      await addToCart(user.id, designId);
       if (onReset) onReset();
+      alert('Design added to cart!');
     } catch (err) {
       alert('Failed to add to cart: ' + err.message);
     } finally {

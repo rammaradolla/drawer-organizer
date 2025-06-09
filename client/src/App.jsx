@@ -5,6 +5,9 @@ import OrderForm from './components/OrderForm';
 import Cart from './components/Cart';
 import { useSelector } from 'react-redux';
 import InfoBanner from './components/InfoBanner';
+import { UserProvider, useUser } from './components/UserProvider';
+import LoginButton from './components/LoginButton';
+import UserInfo from './components/UserInfo';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -23,6 +26,9 @@ function App() {
   const [resetKey, setResetKey] = useState(0);
   const canvasEditorRef = useRef();
   const cart = useSelector(state => state.cart);
+
+  // User context
+  const { user, loading } = useUser();
 
   const calculatePrice = () => {
     // Calculate total area of compartments in square inches
@@ -111,9 +117,12 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 py-6">
       <div className="w-full px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">
-          Drawer Organizer Designer
-        </h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Drawer Organizer Designer
+          </h1>
+          <UserInfo />
+        </div>
 
         <InfoBanner />
 
@@ -130,10 +139,19 @@ function App() {
               }}
             />
           </div>
-          {/* Cart Sidebar */}
+          {/* Cart Sidebar - Protected */}
           <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
-            <Cart />
-            {cart.length > 0 && (
+            {loading ? (
+              <div className="flex items-center justify-center h-full">Loading...</div>
+            ) : user ? (
+              <Cart />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4">
+                <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
+                <LoginButton />
+              </div>
+            )}
+            {user && cart.length > 0 && (
               <div className="p-4 mt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="text-lg font-semibold">
@@ -184,4 +202,11 @@ function App() {
   );
 }
 
-export default App;
+// Wrap App in UserProvider
+const AppWithProvider = () => (
+  <UserProvider>
+    <App />
+  </UserProvider>
+);
+
+export default AppWithProvider;
