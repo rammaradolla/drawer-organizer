@@ -74,4 +74,14 @@ export async function addToCart(userId: string, designId: string) {
     .from('cart_items')
     .insert([{ user_id: userId, design_id: designId, quantity: 1 }]);
   if (error) throw error;
+}
+
+export async function fetchCartItems(userId: string) {
+  // Fetch cart items joined with design details
+  const { data, error } = await supabase
+    .from('cart_items')
+    .select(`id, quantity, design_id, designs:design_id (id, json_layout, wood_type, dimensions, preview_url, created_at)`)
+    .eq('user_id', userId);
+  if (error) throw error;
+  return data;
 } 

@@ -55,3 +55,13 @@ CORS_ORIGIN=http://localhost:5173
 
 - Frontend: React, Vite, Konva.js, TailwindCSS
 - Backend: Node.js, Express, Nodemailer, Puppeteer 
+
+## Restarting the Application & Resolving Port Conflicts
+
+If you see an error like `Error: listen EADDRINUSE: address already in use :::3000`, use this all-in-one command in your project root to kill the process using port 3000 and restart the app:
+
+```bash
+lsof -ti :3000 | xargs kill -9; npm run dev
+```
+
+This will force-stop any process using port 3000 and start the development servers again. 

@@ -3,11 +3,14 @@ import DrawerSetup from './components/DrawerSetup';
 import CanvasEditor from './components/CanvasEditor';
 import OrderForm from './components/OrderForm';
 import Cart from './components/Cart';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import InfoBanner from './components/InfoBanner';
 import { UserProvider, useUser } from './components/UserProvider';
 import LoginButton from './components/LoginButton';
 import UserInfo from './components/UserInfo';
+import { setCart } from './redux/cartSlice';
+import { fetchCartItems } from './utils/supabaseDesigns';
+import { createCartItem } from './utils/createCartItem';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -26,9 +29,45 @@ function App() {
   const [resetKey, setResetKey] = useState(0);
   const canvasEditorRef = useRef();
   const cart = useSelector(state => state.cart);
+  const dispatch = useDispatch();
 
   // User context
   const { user, loading } = useUser();
+
+  // Sync cart from Supabase on user login/change
+  React.useEffect(() => {
+    const syncCart = async () => {
+      if (user) {
+        try {
+          const items = await fetchCartItems(user.id);
+          const mapped = items.map(item => {
+            const design = item.designs;
+            return createCartItem({
+              dimensions: parseDimensions(design.dimensions),
+              layout: JSON.parse(design.json_layout),
+              image2D: null, // No 2D image in Supabase, set to null
+              image3D: design.preview_url,
+              createdAt: design.created_at
+            });
+          });
+          dispatch(setCart(mapped));
+        } catch (e) {
+          console.error('Failed to sync cart:', e);
+        }
+      } else {
+        dispatch(setCart([]));
+      }
+    };
+    syncCart();
+    // eslint-disable-next-line
+  }, [user]);
+
+  // Helper to parse dimensions string (e.g., "30x20x6")
+  function parseDimensions(dimStr) {
+    if (!dimStr) return { width: 0, depth: 0, height: 0 };
+    const [width, depth, height] = dimStr.split('x').map(Number);
+    return { width, depth, height };
+  }
 
   const calculatePrice = () => {
     // Calculate total area of compartments in square inches

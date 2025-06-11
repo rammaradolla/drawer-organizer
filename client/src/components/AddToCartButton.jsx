@@ -9,6 +9,9 @@ import {
   addToCart,
   checkDesignInCart
 } from '../utils/supabaseDesigns';
+import { useDispatch } from 'react-redux';
+import { addCartItem } from '../redux/cartSlice';
+import { createCartItem } from '../utils/createCartItem';
 
 export default function AddToCartButton({
   design2DRef,
@@ -21,6 +24,7 @@ export default function AddToCartButton({
   onReset
 }) {
   const { user } = useUser();
+  const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
 
   const handleAddToCart = async () => {
@@ -63,6 +67,14 @@ export default function AddToCartButton({
       });
       // 6. Add to cart
       await addToCart(user.id, designId);
+      // 7. Add to Redux cart
+      const cartItem = createCartItem({
+        dimensions,
+        layout,
+        image2D: null, // You may want to capture 2D image as well if available
+        image3D: previewUrl
+      });
+      dispatch(addCartItem(cartItem));
       if (onReset) onReset();
       alert('Design added to cart!');
     } catch (err) {
