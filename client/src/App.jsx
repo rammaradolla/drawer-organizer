@@ -45,7 +45,7 @@ function App() {
             return createCartItem({
               dimensions: parseDimensions(design.dimensions),
               layout: JSON.parse(design.json_layout),
-              image2D: null, // No 2D image in Supabase, set to null
+              image2D: design.preview2d_url || null,
               image3D: design.preview_url,
               createdAt: design.created_at
             });

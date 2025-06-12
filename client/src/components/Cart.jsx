@@ -1,10 +1,13 @@
 import React from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { removeCartItem, clearCart } from '../redux/cartSlice';
+import { useUser } from './UserProvider';
+import { clearCartInSupabase } from '../utils/supabaseDesigns';
 
 export default function Cart() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
+  const { user } = useUser();
 
   if (!cart.length) {
     return (
@@ -47,7 +50,12 @@ export default function Cart() {
         <h2 className="text-xl font-bold">Cart</h2>
         <button
           className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-          onClick={() => dispatch(clearCart())}
+          onClick={async () => {
+            if (user) {
+              await clearCartInSupabase(user.id);
+            }
+            dispatch(clearCart());
+          }}
         >
           Clear Cart
         </button>

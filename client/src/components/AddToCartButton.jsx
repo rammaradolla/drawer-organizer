@@ -5,9 +5,11 @@ import { capture3DImage } from '../utils/capture3DImage';
 import {
   dataUrlToBlob,
   uploadPreviewImage,
+  upload2DPreviewImage,
   insertDesign,
   addToCart,
-  checkDesignInCart
+  checkDesignInCart,
+  clearCartInSupabase
 } from '../utils/supabaseDesigns';
 import { useDispatch } from 'react-redux';
 import { addCartItem } from '../redux/cartSlice';
@@ -43,11 +45,14 @@ export default function AddToCartButton({
         setLoading(false);
         return;
       }
-      // 3. Capture 3D preview as PNG dataURL and convert to Blob
+      // 3. Capture 2D and 3D previews
+      const image2DDataUrl = capture2DImage(design2DRef);
       const image3DDataUrl = capture3DImage(threeRenderer.current);
+      const image2DBlob = await dataUrlToBlob(image2DDataUrl);
       const image3DBlob = await dataUrlToBlob(image3DDataUrl);
       // 4. Upload to Supabase Storage
       const previewUrl = await uploadPreviewImage(user.id, image3DBlob);
+      const preview2dUrl = await upload2DPreviewImage(user.id, image2DBlob);
       // 5. Insert design
       const dimensionsStr = `${dimensions.width}x${dimensions.depth}x${dimensions.height}`;
       const woodType = layout.selectedWoodType;
@@ -57,6 +62,7 @@ export default function AddToCartButton({
         woodType,
         dimensions: dimensionsStr,
         previewUrl,
+        preview2dUrl,
       });
       const designId = await insertDesign({
         userId: user.id,
@@ -64,6 +70,7 @@ export default function AddToCartButton({
         woodType,
         dimensions: dimensionsStr,
         previewUrl,
+        preview2dUrl,
       });
       // 6. Add to cart
       await addToCart(user.id, designId);
@@ -71,7 +78,7 @@ export default function AddToCartButton({
       const cartItem = createCartItem({
         dimensions,
         layout,
-        image2D: null, // You may want to capture 2D image as well if available
+        image2D: preview2dUrl,
         image3D: previewUrl
       });
       dispatch(addCartItem(cartItem));
