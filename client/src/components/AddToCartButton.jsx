@@ -75,9 +75,22 @@ export default function AddToCartButton({
       // 6. Add to cart
       await addToCart(user.id, designId);
       // 7. Add to Redux cart
+      const dividers = (layout.splitLines || []).map(line => {
+        if (line.isHorizontal) {
+          return {
+            length: Math.abs(line.x2 - line.x1) / 10, // px to inches
+            height: dimensions.height
+          };
+        } else {
+          return {
+            length: Math.abs(line.y2 - line.y1) / 10, // px to inches
+            height: dimensions.height
+          };
+        }
+      });
       const cartItem = createCartItem({
         dimensions,
-        layout,
+        layout: { ...layout, dividers }, // add dividers to layout
         image2D: preview2dUrl,
         image3D: previewUrl
       });

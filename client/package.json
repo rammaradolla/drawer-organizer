@@ -18,13 +18,17 @@
     "@heroicons/react": "^2.0.18",
     "@react-three/drei": "^9.88.13",
     "@react-three/fiber": "^8.15.19",
+    "@supabase/supabase-js": "^2.50.0",
+    "@types/react-router-dom": "^5.3.3",
     "@types/three": "^0.177.0",
+    "axios": "^1.10.0",
     "html2canvas": "^1.4.1",
     "konva": "^9.2.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-konva": "^18.2.10",
     "react-redux": "^9.2.0",
+    "react-router-dom": "^7.6.2",
     "three": "^0.177.0"
   },
   "overrides": {

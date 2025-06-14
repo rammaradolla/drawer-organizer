@@ -11,6 +11,8 @@ import UserInfo from './components/UserInfo';
 import { setCart } from './redux/cartSlice';
 import { fetchCartItems } from './utils/supabaseDesigns';
 import { createCartItem } from './utils/createCartItem';
+import CheckoutButton from './components/CheckoutButton';
+import { useLocation } from 'react-router-dom';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -30,21 +32,40 @@ function App() {
   const canvasEditorRef = useRef();
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
+  const location = useLocation();
 
   // User context
   const { user, loading } = useUser();
 
   // Sync cart from Supabase on user login/change
   React.useEffect(() => {
+    // Don't sync cart if on the checkout success page
+    if (location.pathname.startsWith('/checkout/success')) return;
+
     const syncCart = async () => {
       if (user) {
         try {
           const items = await fetchCartItems(user.id);
           const mapped = items.map(item => {
             const design = item.designs;
+            const layout = JSON.parse(design.json_layout);
+            // Rebuild dividers from splitLines
+            const dividers = (layout.splitLines || []).map(line => {
+              if (line.isHorizontal) {
+                return {
+                  length: Math.abs(line.x2 - line.x1) / 10,
+                  height: parseFloat(design.dimensions.split('x')[2]) || 6
+                };
+              } else {
+                return {
+                  length: Math.abs(line.y2 - line.y1) / 10,
+                  height: parseFloat(design.dimensions.split('x')[2]) || 6
+                };
+              }
+            });
             return createCartItem({
               dimensions: parseDimensions(design.dimensions),
-              layout: JSON.parse(design.json_layout),
+              layout: { ...layout, dividers },
               image2D: design.preview2d_url || null,
               image3D: design.preview_url,
               createdAt: design.created_at
@@ -60,7 +81,7 @@ function App() {
     };
     syncCart();
     // eslint-disable-next-line
-  }, [user]);
+  }, [user, location.pathname]);
 
   // Helper to parse dimensions string (e.g., "30x20x6")
   function parseDimensions(dimStr) {
@@ -151,7 +172,8 @@ function App() {
     }
   };
 
-  const totalPrice = calculatePrice();
+  // Calculate total price from cart items
+  const totalPrice = cart.reduce((sum, item) => sum + (item.price || 0), 0);
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -191,51 +213,10 @@ function App() {
               </div>
             )}
             {user && cart.length > 0 && (
-              <div className="p-4 mt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <div className="text-lg font-semibold">
-                    Total Price: ${totalPrice.toFixed(2)}
-                  </div>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setShowOrderForm(true)}
-                    disabled={compartments.length === 0}
-                  >
-                    Place Order
-                  </button>
-                </div>
-              </div>
+              null
             )}
           </div>
         </div>
-        {showOrderForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-4">
-                <button
-                  className="float-right text-gray-500 hover:text-gray-700"
-                  onClick={() => setShowOrderForm(false)}
-                >
-                  ✕
-                </button>
-                <OrderForm
-                  design={{
-                    ...dimensions,
-                    compartments: compartments.map(comp => ({
-                      ...comp,
-                      x: comp.x / 10,
-                      y: comp.y / 10,
-                      width: comp.width / 10,
-                      height: comp.height / 10,
-                    })),
-                  }}
-                  totalPrice={totalPrice}
-                  onSubmit={handleOrderSubmit}
-                />
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

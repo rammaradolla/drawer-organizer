@@ -1,13 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { removeCartItem, clearCart } from '../redux/cartSlice';
 import { useUser } from './UserProvider';
 import { clearCartInSupabase } from '../utils/supabaseDesigns';
+import CheckoutButton from './CheckoutButton';
 
 export default function Cart() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
   const { user } = useUser();
+
+  const [quantities, setQuantities] = useState(() =>
+    Object.fromEntries(cart.map(item => [item.id, item.quantity || 1]))
+  );
+
+  const handleQuantityChange = (id, val) => {
+    setQuantities(q => ({ ...q, [id]: Math.max(1, val) }));
+    // Optionally, update Redux and Supabase here if you want to persist quantity
+  };
 
   if (!cart.length) {
     return (
@@ -61,7 +71,7 @@ export default function Cart() {
         </button>
       </div>
       <div className="grid gap-6">
-        {cart.map(item => (
+        {cart.map((item) => (
           <div key={item.id} className="border rounded-lg p-4 flex gap-4 items-center bg-white shadow-sm">
             <div>
               <img src={item.image2D} alt="2D Design" className="w-32 h-24 object-contain border mb-2" />
@@ -73,6 +83,29 @@ export default function Cart() {
               </div>
               <div className="text-xs text-slate-500 mb-1">Added: {new Date(item.createdAt).toLocaleString()}</div>
               <div className="text-xs text-slate-600">Wood: {item.layout.selectedWoodType}</div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Price:</span>
+                <span className="text-base font-bold text-blue-700">${item.price?.toFixed(2) || '0.00'}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Qty:</span>
+                <button
+                  className="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                  onClick={() => handleQuantityChange(item.id, (quantities[item.id] || 1) - 1)}
+                  disabled={quantities[item.id] <= 1}
+                >-</button>
+                <input
+                  type="number"
+                  min={1}
+                  value={quantities[item.id] || 1}
+                  onChange={e => handleQuantityChange(item.id, Number(e.target.value))}
+                  className="w-12 text-center border rounded"
+                />
+                <button
+                  className="px-2 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                  onClick={() => handleQuantityChange(item.id, (quantities[item.id] || 1) + 1)}
+                >+</button>
+              </div>
             </div>
             <button
               className="px-2 py-1 bg-red-400 text-white rounded hover:bg-red-600"
@@ -82,6 +115,14 @@ export default function Cart() {
             </button>
           </div>
         ))}
+      </div>
+      <div className="flex items-center justify-between mt-6 gap-4">
+        <div className="text-xl font-bold text-slate-800">
+          Total: ${cart.reduce((sum, item) => (sum + (item.price || 0) * (quantities[item.id] || 1)), 0).toFixed(2)}
+        </div>
+        <div>
+          <CheckoutButton cart={cart} quantities={quantities} user={user} />
+        </div>
       </div>
     </div>
   );

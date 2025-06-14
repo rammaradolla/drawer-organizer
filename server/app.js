@@ -15,12 +15,18 @@ app.use(cors({
   methods: ['GET', 'POST'],
   credentials: true
 }));
+
+// Special handling for Stripe webhook route
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+
+// Regular middleware for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/design', require('./routes/design'));
 app.use('/api/order', require('./routes/order'));
+app.use('/api/stripe', require('./routes/stripe'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
