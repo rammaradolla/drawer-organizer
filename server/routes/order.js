@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Configure email transporter
 const transporter = nodemailer.createTransport({
@@ -62,6 +64,22 @@ router.post('/submit', async (req, res) => {
       message: 'Failed to submit order',
       error: error.message
     });
+  }
+});
+
+// Fetch all orders for a user
+router.get('/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch orders' });
   }
 });
 

@@ -12,7 +12,8 @@ import { setCart } from './redux/cartSlice';
 import { fetchCartItems } from './utils/supabaseDesigns';
 import { createCartItem } from './utils/createCartItem';
 import CheckoutButton from './components/CheckoutButton';
-import { useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import MyOrders from './components/MyOrders';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -182,41 +183,51 @@ function App() {
           <h1 className="text-3xl font-bold text-gray-900">
             Drawer Organizer Designer
           </h1>
-          <UserInfo />
+          <div className="flex items-center gap-6">
+            <Link to="/" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Home</Link>
+            <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+            <div className="ml-6">
+              {user ? (
+                <UserInfo />
+              ) : (
+                <LoginButton variant="header" />
+              )}
+            </div>
+          </div>
         </div>
-
         <InfoBanner />
-
-        <div className="flex flex-row w-full h-full">
-          {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
-          <div className="flex-[2_2_0%] min-w-0">
-            <CanvasEditor
-              key={resetKey}
-              ref={canvasEditorRef}
-              onCompartmentsChange={setCompartments}
-              onClear={handleEditorClear}
-              addToCartButtonProps={{
-                onReset: handleEditorClear
-              }}
-            />
-          </div>
-          {/* Cart Sidebar - Protected */}
-          <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">Loading...</div>
-            ) : user ? (
-              <Cart />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-4">
-                <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
-                <LoginButton />
+        <Routes>
+          <Route path="/orders" element={<MyOrders />} />
+          <Route path="*" element={
+            <div className="flex flex-row w-full h-full">
+              {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
+              <div className="flex-[2_2_0%] min-w-0">
+                <CanvasEditor
+                  key={resetKey}
+                  ref={canvasEditorRef}
+                  onCompartmentsChange={setCompartments}
+                  onClear={handleEditorClear}
+                  addToCartButtonProps={{
+                    onReset: handleEditorClear
+                  }}
+                />
               </div>
-            )}
-            {user && cart.length > 0 && (
-              null
-            )}
-          </div>
-        </div>
+              {/* Cart Sidebar - Protected */}
+              <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">Loading...</div>
+                ) : user ? (
+                  <Cart />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4">
+                    <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
+                    <LoginButton id="login-btn" />
+                  </div>
+                )}
+              </div>
+            </div>
+          } />
+        </Routes>
       </div>
     </div>
   );
