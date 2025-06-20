@@ -12,7 +12,7 @@ const app = express();
 // Middleware - Using centralized port configuration
 app.use(cors({
   origin: SERVER_CONFIG.CORS_ORIGINS,
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
   credentials: true
 }));
 
@@ -27,6 +27,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/design', require('./routes/design'));
 app.use('/api/order', require('./routes/order'));
 app.use('/api/stripe', require('./routes/stripe'));
+app.use('/api/fulfillment', require('./routes/fulfillment'));
+app.use('/api/test', require('./routes/test')); // Test route (remove in production)
 
 // Error handling middleware
 app.use((err, req, res, next) => {

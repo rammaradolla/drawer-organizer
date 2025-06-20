@@ -11,6 +11,8 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKe
 
 export type SupabaseUser = Pick<User, 'id' | 'email' | 'user_metadata'> & {
   name?: string;
+  role?: string;
+  access_token?: string;
 };
 
 export function getCurrentUser(session: Session | null): SupabaseUser | null {

@@ -23,5 +23,25 @@ export function onAuthStateChange(callback: (event: AuthChangeEvent, session: Se
 
 export async function getSupabaseUser(): Promise<SupabaseUser | null> {
   const session = await getSession();
-  return getCurrentUser(session);
+  const baseUser = getCurrentUser(session);
+  if (!baseUser) return null;
+
+  // Fetch user row from users table to get role and name
+  const { data: dbUser, error } = await supabase
+    .from('users')
+    .select('id, email, name, role')
+    .eq('email', baseUser.email)
+    .single();
+
+  if (error || !dbUser) {
+    return { ...baseUser, access_token: session?.access_token || null };
+  }
+
+  return {
+    ...baseUser,
+    name: dbUser.name || baseUser.name,
+    role: dbUser.role || null,
+    access_token: session?.access_token || null,
+    dbUser
+  };
 }

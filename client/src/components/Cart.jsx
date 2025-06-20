@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { removeCartItem, clearCart } from '../redux/cartSlice';
-import { useUser } from './UserProvider';
+import { useUser } from "./UserProvider";
 import { clearCartInSupabase } from '../utils/supabaseDesigns';
 import CheckoutButton from './CheckoutButton';
+import { Link } from 'react-router-dom';
 
 export default function Cart() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
-  const { user } = useUser();
+  const { user, loading } = useUser();
 
   const [quantities, setQuantities] = useState(() =>
     Object.fromEntries(cart.map(item => [item.id, item.quantity || 1]))
@@ -18,6 +19,9 @@ export default function Cart() {
     setQuantities(q => ({ ...q, [id]: Math.max(1, val) }));
     // Optionally, update Redux and Supabase here if you want to persist quantity
   };
+
+  // Debug print for fulfillment view
+  console.log("FULFILLMENT CHECK:", user && user.role);
 
   if (!cart.length) {
     return (
@@ -124,6 +128,11 @@ export default function Cart() {
           <CheckoutButton cart={cart} quantities={quantities} user={user} />
         </div>
       </div>
+      {user && user.role === 'operations' && (
+        <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold">
+          Fulfillment
+        </Link>
+      )}
     </div>
   );
 } 

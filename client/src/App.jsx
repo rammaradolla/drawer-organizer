@@ -14,6 +14,7 @@ import { createCartItem } from './utils/createCartItem';
 import CheckoutButton from './components/CheckoutButton';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import MyOrders from './components/MyOrders';
+import Fulfillment from './components/Fulfillment';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -37,6 +38,7 @@ function App() {
 
   // User context
   const { user, loading } = useUser();
+  console.log('DEBUG USER:', user);
 
   // Sync cart from Supabase on user login/change
   React.useEffect(() => {
@@ -186,6 +188,18 @@ function App() {
           <div className="flex items-center gap-6">
             <Link to="/" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Home</Link>
             <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+            {/* Fulfillment link for operations and admin */}
+            {user && (user.role === 'operations' || user.role === 'admin') && (
+              <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold">
+                Fulfillment
+              </Link>
+            )}
+            {/* Admin-only link example */}
+            {user && user.role === 'admin' && (
+              <Link to="/admin" className="px-4 py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">
+                Admin Panel
+              </Link>
+            )}
             <div className="ml-6">
               {user ? (
                 <UserInfo />
@@ -198,6 +212,7 @@ function App() {
         <InfoBanner />
         <Routes>
           <Route path="/orders" element={<MyOrders />} />
+          <Route path="/fulfillment" element={<Fulfillment />} />
           <Route path="*" element={
             <div className="flex flex-row w-full h-full">
               {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
