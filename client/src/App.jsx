@@ -38,8 +38,6 @@ function App() {
 
   // User context
   const { user, loading } = useUser();
-  console.log('DEBUG USER:', user);
-
   // Sync cart from Supabase on user login/change
   React.useEffect(() => {
     // Don't sync cart if on the checkout success page

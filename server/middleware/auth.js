@@ -8,11 +8,8 @@ const authenticateToken = async (req, res, next) => {
   try {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-    console.log('AUTH HEADER:', authHeader);
-    console.log('TOKEN:', token);
 
     if (!token) {
-      console.log('No token found in Authorization header.');
       return res.status(401).json({ 
         success: false, 
         message: 'Access token required' 
@@ -20,17 +17,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Verify JWT with Supabase JWT secret
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-      console.log('Decoded JWT:', decoded);
-    } catch (jwtError) {
-      console.error('JWT verification failed:', jwtError);
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Invalid token (JWT verification failed)' 
-      });
-    }
+    const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
     
     // Get user details from Supabase
     const { data: user, error } = await supabase
@@ -38,10 +25,8 @@ const authenticateToken = async (req, res, next) => {
       .select('id, email, role')
       .eq('id', decoded.sub)
       .single();
-    console.log('User lookup result:', user, 'Error:', error);
 
     if (error || !user) {
-      console.log('User not found or error in user lookup.');
       return res.status(401).json({ 
         success: false, 
         message: 'Invalid token or user not found' 
@@ -50,8 +35,6 @@ const authenticateToken = async (req, res, next) => {
 
     // Attach user info to request
     req.user = user;
-    console.log('User from DB:', user);
-    console.log('Authentication successful, proceeding to next middleware.');
     next();
   } catch (error) {
     console.error('Authentication error:', error);
