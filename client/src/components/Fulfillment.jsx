@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useUser } from './UserProvider';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
+import { useDebounce } from '../hooks/useDebounce';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-100 text-yellow-800',
@@ -25,6 +26,7 @@ export default function Fulfillment() {
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showAudit, setShowAudit] = useState(false);
@@ -33,13 +35,13 @@ export default function Fulfillment() {
   useEffect(() => {
     fetchOrders();
     // eslint-disable-next-line
-  }, [status, search]);
+  }, [status, debouncedSearch]);
 
   async function fetchOrders() {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
-    let url = `/api/fulfillment/orders?status=${status}&search=${encodeURIComponent(search)}`;
+    let url = `/api/fulfillment/orders?status=${status}&search=${encodeURIComponent(debouncedSearch)}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -116,7 +118,10 @@ export default function Fulfillment() {
             ) : orders.map(order => (
               <tr key={order.id} className="border-b hover:bg-gray-50">
                 <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
-                <td className="p-3">{order.users?.name || order.users?.email || 'N/A'}</td>
+                <td className="p-3">
+                  <div className="font-medium">{order.users?.name || 'N/A'}</div>
+                  <div className="text-xs text-gray-500">{order.users?.email}</div>
+                </td>
                 <td className="p-3">
                   <select
                     className={`rounded px-2 py-1 ${STATUS_COLORS[order.status]}`}
