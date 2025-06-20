@@ -147,19 +147,19 @@ router.patch('/orders/:orderId', async (req, res) => {
       });
     }
 
-    // Fetch the current order for old status
+    // Fetch the current order for old status and values
     const { data: oldOrder, error: oldOrderError } = await supabase
       .from('orders')
-      .select('status')
+      .select('*')
       .eq('id', orderId)
       .single();
+
     if (oldOrderError || !oldOrder) {
       return res.status(404).json({
         success: false,
         message: 'Order not found'
       });
     }
-    const oldStatus = oldOrder.status;
 
     // Build update object
     const updateData = {};
@@ -169,11 +169,11 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (notes !== undefined) updateData.notes = notes;
     if (blocker_reason !== undefined) updateData.blocker_reason = blocker_reason;
 
-    // Add audit trail
+    // Add audit trail metadata to the order itself
     updateData.last_updated_by = req.user.id;
     updateData.last_updated_at = new Date().toISOString();
 
-    const { data: order, error } = await supabase
+    const { data: updatedOrder, error } = await supabase
       .from('orders')
       .update(updateData)
       .eq('id', orderId)
@@ -189,37 +189,50 @@ router.patch('/orders/:orderId', async (req, res) => {
 
     if (error) throw error;
 
-    if (!order) {
+    if (!updatedOrder) {
       return res.status(404).json({
         success: false,
-        message: 'Order not found'
+        message: 'Order not found after update'
       });
     }
 
-    // Create audit log entry
-    await supabase
-      .from('order_audit_log')
-      .insert({
-        order_id: orderId,
-        action: 'status_update',
-        old_values: JSON.stringify({}),
-        new_values: JSON.stringify(updateData),
-        updated_by: req.user.id,
-        notes: `Order ${status ? `status changed to ${status}` : 'updated'} by ${req.user.email}`
-      });
+    // Create a more detailed audit log entry
+    const auditLogPayload = {
+      order_id: orderId,
+      updated_by: req.user.id,
+      notes: `Order fields updated by ${req.user.email}.`,
+      old_values: {},
+      new_values: {}
+    };
+
+    if (status && status !== oldOrder.status) {
+      auditLogPayload.action = 'STATUS_CHANGED';
+      auditLogPayload.notes = `Status changed from ${oldOrder.status} to ${status} by ${req.user.email}.`;
+      auditLogPayload.old_values.status = oldOrder.status;
+      auditLogPayload.new_values.status = status;
+    }
+    
+    if (tracking_number && tracking_number !== oldOrder.tracking_number) {
+        auditLogPayload.action = 'TRACKING_UPDATED';
+        auditLogPayload.notes = `Tracking number updated by ${req.user.email}.`;
+        auditLogPayload.old_values.tracking_number = oldOrder.tracking_number;
+        auditLogPayload.new_values.tracking_number = tracking_number;
+    }
+
+    await supabase.from('order_audit_log').insert(auditLogPayload);
 
     // EMAIL NOTIFICATIONS
-    if (status && status !== oldStatus) {
+    if (status && status !== oldOrder.status) {
       // Status changed
-      await emailService.sendOrderStatusUpdate(orderId, oldStatus, status, req.user);
+      await emailService.sendOrderStatusUpdate(orderId, oldOrder.status, status, req.user);
       if (status === 'blocked') {
         await emailService.sendOrderBlockedNotification(orderId, blocker_reason, req.user);
       } else if (status === 'cancelled') {
         await emailService.sendOrderCancelledNotification(orderId, notes, req.user);
-      } else if (status === 'fulfilled' && order.tracking_number) {
+      } else if (status === 'fulfilled' && updatedOrder.tracking_number) {
         await emailService.sendTrackingUpdate(orderId, req.user);
       }
-    } else if (tracking_number && status === oldStatus) {
+    } else if (tracking_number && status === oldOrder.status) {
       // Tracking number added/updated but status didn't change
       await emailService.sendTrackingUpdate(orderId, req.user);
     }
@@ -229,7 +242,7 @@ router.patch('/orders/:orderId', async (req, res) => {
     res.json({
       success: true,
       message: 'Order updated successfully',
-      order
+      order: updatedOrder
     });
   } catch (error) {
     console.error('Error updating order:', error);
