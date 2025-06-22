@@ -183,7 +183,14 @@ export default function Fulfillment() {
                   <div className="text-xs text-gray-600 mb-1">{new Date(entry.created_at).toLocaleString()} by {entry.users?.email || entry.updated_by}</div>
                   <div className="text-sm font-semibold">{entry.action}</div>
                   <div className="text-xs text-gray-700">{entry.notes}</div>
-                  <pre className="bg-gray-100 rounded p-1 text-xs overflow-x-auto">{JSON.stringify(entry.new_values, null, 2)}</pre>
+                  {entry.new_values && (
+                    <pre className="bg-gray-100 rounded p-1 text-xs overflow-x-auto">
+                      {typeof entry.new_values === 'string' 
+                        ? JSON.stringify(JSON.parse(entry.new_values), null, 2)
+                        : JSON.stringify(entry.new_values, null, 2)
+                      }
+                    </pre>
+                  )}
                 </div>
               ))}
             </div>

@@ -202,7 +202,8 @@ router.patch('/orders/:orderId', async (req, res) => {
       updated_by: req.user.id,
       notes: `Order fields updated by ${req.user.email}.`,
       old_values: {},
-      new_values: {}
+      new_values: {},
+      action: 'ORDER_UPDATED' // Default action
     };
 
     if (status && status !== oldOrder.status) {
@@ -218,6 +219,10 @@ router.patch('/orders/:orderId', async (req, res) => {
         auditLogPayload.old_values.tracking_number = oldOrder.tracking_number;
         auditLogPayload.new_values.tracking_number = tracking_number;
     }
+
+    // Serialize old_values and new_values as JSON strings
+    auditLogPayload.old_values = JSON.stringify(auditLogPayload.old_values);
+    auditLogPayload.new_values = JSON.stringify(auditLogPayload.new_values);
 
     await supabase.from('order_audit_log').insert(auditLogPayload);
 

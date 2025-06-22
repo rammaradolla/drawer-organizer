@@ -57,6 +57,22 @@ const createCheckoutSession = async (userId, cartItems) => {
 
     if (error) throw error;
 
+    // Create audit log entry for order creation
+    await supabase
+      .from('order_audit_log')
+      .insert({
+        order_id: order.id,
+        action: 'ORDER_CREATED',
+        old_values: JSON.stringify({}),
+        new_values: JSON.stringify({
+          status: 'pending',
+          total_price: totalPrice,
+          cart_items_count: cartItems.length
+        }),
+        updated_by: userId, // Use the customer's user ID
+        notes: `Order created with ${cartItems.length} items, total: $${totalPrice.toFixed(2)}`
+      });
+
     return {
       checkoutUrl: session.url,
       orderId: order.id,
@@ -73,6 +89,15 @@ const handleWebhook = async (event) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         
+        // Get the order first to get the old status
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('stripe_checkout_id', session.id)
+          .single();
+
+        if (orderError) throw orderError;
+
         // Update order status in Supabase
         const { error } = await supabase
           .from('orders')
@@ -80,6 +105,19 @@ const handleWebhook = async (event) => {
           .eq('stripe_checkout_id', session.id);
 
         if (error) throw error;
+
+        // Create audit log entry for payment
+        await supabase
+          .from('order_audit_log')
+          .insert({
+            order_id: order.id,
+            action: 'PAYMENT_RECEIVED',
+            old_values: JSON.stringify({ status: order.status }),
+            new_values: JSON.stringify({ status: 'paid' }),
+            updated_by: order.user_id, // Use the customer's user ID
+            notes: `Payment completed via Stripe. Order status changed from ${order.status} to paid.`
+          });
+
         break;
       }
       // Add other webhook event handlers as needed
