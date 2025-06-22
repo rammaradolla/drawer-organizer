@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const emailService = require('../services/emailService');
+const { getCustomerFacingStatus, ALL_OPERATIONAL_STATUSES } = require('../utils/statusConstants');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -35,7 +36,12 @@ router.get('/orders', async (req, res) => {
     // Always select the data and the related user info
     query = query.select(`
       *,
-      users (
+      users!orders_user_id_fkey (
+        id,
+        email,
+        name
+      ),
+      assignee:users!orders_assignee_id_fkey (
         id,
         email,
         name
@@ -98,6 +104,11 @@ router.get('/orders/:orderId', async (req, res) => {
           id,
           email,
           name
+        ),
+        assignee:users!orders_assignee_id_fkey (
+          id,
+          email,
+          name
         )
       `)
       .eq('id', orderId)
@@ -131,19 +142,19 @@ router.patch('/orders/:orderId', async (req, res) => {
   try {
     const { orderId } = req.params;
     const { 
-      status, 
+      granular_status,
       tracking_number, 
       tracking_carrier, 
       notes, 
-      blocker_reason 
+      blocker_reason,
+      assignee_id
     } = req.body;
 
     // Validate status
-    const validStatuses = ['pending', 'in_progress', 'fulfilled', 'blocked', 'cancelled'];
-    if (status && !validStatuses.includes(status)) {
+    if (granular_status && !ALL_OPERATIONAL_STATUSES.includes(granular_status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+        message: `Invalid granular_status. Must be one of: ${ALL_OPERATIONAL_STATUSES.join(', ')}`
       });
     }
 
@@ -163,11 +174,15 @@ router.patch('/orders/:orderId', async (req, res) => {
 
     // Build update object
     const updateData = {};
-    if (status) updateData.status = status;
+    if (granular_status) {
+      updateData.granular_status = granular_status;
+      updateData.status = getCustomerFacingStatus(granular_status);
+    }
     if (tracking_number) updateData.tracking_number = tracking_number;
     if (tracking_carrier) updateData.tracking_carrier = tracking_carrier;
     if (notes !== undefined) updateData.notes = notes;
     if (blocker_reason !== undefined) updateData.blocker_reason = blocker_reason;
+    if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
 
     // Add audit trail metadata to the order itself
     updateData.last_updated_by = req.user.id;
@@ -180,6 +195,11 @@ router.patch('/orders/:orderId', async (req, res) => {
       .select(`
         *,
         users!orders_user_id_fkey (
+          id,
+          email,
+          name
+        ),
+        assignee:users!orders_assignee_id_fkey (
           id,
           email,
           name
@@ -202,15 +222,16 @@ router.patch('/orders/:orderId', async (req, res) => {
       updated_by: req.user.id,
       notes: `Order fields updated by ${req.user.email}.`,
       old_values: {},
-      new_values: {},
-      action: 'ORDER_UPDATED' // Default action
+      new_values: {}
     };
 
-    if (status && status !== oldOrder.status) {
+    if (granular_status && granular_status !== oldOrder.granular_status) {
       auditLogPayload.action = 'STATUS_CHANGED';
-      auditLogPayload.notes = `Status changed from ${oldOrder.status} to ${status} by ${req.user.email}.`;
+      auditLogPayload.notes = `Status changed from ${oldOrder.granular_status} to ${granular_status} by ${req.user.email}.`;
+      auditLogPayload.old_values.granular_status = oldOrder.granular_status;
+      auditLogPayload.new_values.granular_status = granular_status;
       auditLogPayload.old_values.status = oldOrder.status;
-      auditLogPayload.new_values.status = status;
+      auditLogPayload.new_values.status = updatedOrder.status;
     }
     
     if (tracking_number && tracking_number !== oldOrder.tracking_number) {
@@ -220,35 +241,44 @@ router.patch('/orders/:orderId', async (req, res) => {
         auditLogPayload.new_values.tracking_number = tracking_number;
     }
 
-    // Serialize old_values and new_values as JSON strings
-    auditLogPayload.old_values = JSON.stringify(auditLogPayload.old_values);
-    auditLogPayload.new_values = JSON.stringify(auditLogPayload.new_values);
+    if (assignee_id && assignee_id !== oldOrder.assignee_id) {
+      auditLogPayload.action = 'ASSIGNEE_CHANGED';
+      auditLogPayload.notes = `Assignee changed by ${req.user.email}.`;
+      auditLogPayload.old_values.assignee_id = oldOrder.assignee_id;
+      auditLogPayload.new_values.assignee_id = assignee_id;
+    }
 
-    const { error: auditError } = await supabase.from('order_audit_log').insert(auditLogPayload);
-
-    if (auditError) {
-      // Non-blocking: We will report this error but not fail the whole request.
-      console.error('Failed to insert audit log:', auditError.message);
+    // If we have changes, insert an audit log.
+    if (Object.keys(auditLogPayload.new_values).length > 0) {
+      auditLogPayload.old_values = JSON.stringify(auditLogPayload.old_values);
+      auditLogPayload.new_values = JSON.stringify(auditLogPayload.new_values);
+  
+      const { error: auditError } = await supabase.from('order_audit_log').insert(auditLogPayload);
+  
+      if (auditError) {
+        // Non-blocking: We will report this error but not fail the whole request.
+        console.error('Failed to insert audit log:', auditError.message);
+      }
     }
 
     // EMAIL NOTIFICATIONS
     try {
-      if (status && status !== oldOrder.status) {
+      if (granular_status && granular_status !== oldOrder.granular_status) {
         // Status changed
-        await emailService.sendOrderStatusUpdate(orderId, oldOrder.status, status, req.user);
-        if (status === 'blocked') {
+        await emailService.sendOrderStatusUpdate(orderId, oldOrder.status, updatedOrder.status, req.user);
+        if (updatedOrder.status === 'blocked') {
           await emailService.sendOrderBlockedNotification(orderId, blocker_reason, req.user);
-        } else if (status === 'cancelled') {
+        } else if (updatedOrder.status === 'cancelled') {
           await emailService.sendOrderCancelledNotification(orderId, notes, req.user);
-        } else if (status === 'fulfilled' && updatedOrder.tracking_number) {
+        } else if (updatedOrder.status === 'fulfilled' && updatedOrder.tracking_number) {
           await emailService.sendTrackingUpdate(orderId, req.user);
         }
-      } else if (tracking_number && status === oldOrder.status) {
+      } else if (tracking_number && granular_status === oldOrder.granular_status) {
         // Tracking number added/updated but status didn't change
         await emailService.sendTrackingUpdate(orderId, req.user);
       }
       // Optionally, notify operations team
-      await emailService.sendOperationsNotification(orderId, status || 'update', req.user);
+      await emailService.sendOperationsNotification(orderId, granular_status || 'update', req.user);
     } catch (emailError) {
       console.error('Email notification failed, but continuing request. Error:', emailError.message);
     }
@@ -298,6 +328,30 @@ router.get('/orders/:orderId/audit', async (req, res) => {
       success: false,
       message: 'Failed to fetch audit log',
       error: error.message
+    });
+  }
+});
+
+// Get operations users
+router.get('/operations-users', async (req, res) => {
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, name, email')
+      .eq('role', 'operations');
+
+    if (error) throw error;
+
+    res.json({
+      success: true,
+      users,
+    });
+  } catch (error) {
+    console.error('Error fetching operations users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch operations users',
+      error: error.message,
     });
   }
 });

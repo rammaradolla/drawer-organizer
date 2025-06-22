@@ -4,22 +4,55 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useDebounce } from '../hooks/useDebounce';
 
-const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  fulfilled: 'bg-green-100 text-green-800',
-  blocked: 'bg-red-100 text-red-800',
-  cancelled: 'bg-gray-100 text-gray-800',
-};
-
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'fulfilled', label: 'Fulfilled' },
-  { value: 'blocked', label: 'Blocked' },
-  { value: 'cancelled', label: 'Cancelled' },
+const GRANULAR_STATUS_OPTIONS = [
+  // pending
+  "Awaiting Payment",
+  // in_progress
+  "Payment Confirmed",
+  "Design Review",
+  "Material Sourcing",
+  "Cutting & Milling",
+  "Assembly",
+  "Sanding & Finishing",
+  "Final Quality Check",
+  // fulfilled
+  "Packaging",
+  "Awaiting Carrier Pickup",
+  "Shipped",
+  "Delivered",
+  // on_hold
+  "Blocked",
+  "On Hold - Awaiting Customer Response",
+  "On Hold - Supply Issue",
+  "On Hold - Shop Backlog",
+  // cancelled
+  "Cancelled",
 ];
+
+const STATUS_COLORS = {
+  // pending
+  "Awaiting Payment": "bg-yellow-100 text-yellow-800",
+  // in_progress
+  "Payment Confirmed": "bg-blue-100 text-blue-800",
+  "Design Review": "bg-blue-100 text-blue-800",
+  "Material Sourcing": "bg-blue-100 text-blue-800",
+  "Cutting & Milling": "bg-blue-100 text-blue-800",
+  "Assembly": "bg-blue-100 text-blue-800",
+  "Sanding & Finishing": "bg-blue-100 text-blue-800",
+  "Final Quality Check": "bg-blue-100 text-blue-800",
+  // fulfilled
+  "Packaging": "bg-green-100 text-green-800",
+  "Awaiting Carrier Pickup": "bg-green-100 text-green-800",
+  "Shipped": "bg-green-100 text-green-800",
+  "Delivered": "bg-green-100 text-green-800",
+  // on_hold
+  "Blocked": "bg-red-100 text-red-800",
+  "On Hold - Awaiting Customer Response": "bg-red-100 text-red-800",
+  "On Hold - Supply Issue": "bg-red-100 text-red-800",
+  "On Hold - Shop Backlog": "bg-red-100 text-red-800",
+  // cancelled
+  "Cancelled": "bg-gray-100 text-gray-800",
+};
 
 export default function Fulfillment() {
   const { user } = useUser();
@@ -31,11 +64,25 @@ export default function Fulfillment() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [auditedOrderId, setAuditedOrderId] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
+  const [operationsUsers, setOperationsUsers] = useState([]);
 
   useEffect(() => {
     fetchOrders();
+    fetchOperationsUsers();
     // eslint-disable-next-line
   }, [status, debouncedSearch]);
+
+  async function fetchOperationsUsers() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    const res = await fetch('/api/fulfillment/operations-users', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json();
+    if (data.success) {
+      setOperationsUsers(data.users);
+    }
+  }
 
   async function fetchOrders() {
     setLoading(true);
@@ -103,9 +150,12 @@ export default function Fulfillment() {
           value={status}
           onChange={e => setStatus(e.target.value)}
         >
-          {STATUS_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="on_hold">On Hold</option>
+          <option value="fulfilled">Fulfilled</option>
+          <option value="cancelled">Cancelled</option>
         </select>
       </div>
       <div className="overflow-x-auto bg-white rounded shadow">
@@ -114,7 +164,9 @@ export default function Fulfillment() {
             <tr className="bg-gray-100">
               <th className="p-3 text-left">Order ID</th>
               <th className="p-3 text-left">Customer</th>
-              <th className="p-3 text-left">Status</th>
+              <th className="p-3 text-left">Status (Customer)</th>
+              <th className="p-3 text-left">Status (Operational)</th>
+              <th className="p-3 text-left">Assignee</th>
               <th className="p-3 text-left">Tracking</th>
               <th className="p-3 text-left">Total</th>
               <th className="p-3 text-left">Created</th>
@@ -123,9 +175,9 @@ export default function Fulfillment() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center p-6">Loading...</td></tr>
+              <tr><td colSpan={9} className="text-center p-6">Loading...</td></tr>
             ) : orders.length === 0 ? (
-              <tr><td colSpan={7} className="text-center p-6">No orders found.</td></tr>
+              <tr><td colSpan={9} className="text-center p-6">No orders found.</td></tr>
             ) : orders.map(order => (
               <tr key={order.id} className="border-b hover:bg-gray-50">
                 <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
@@ -134,13 +186,38 @@ export default function Fulfillment() {
                   <div className="text-xs text-gray-500">{order.users?.email}</div>
                 </td>
                 <td className="p-3">
+                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                    {
+                      pending: 'bg-yellow-200 text-yellow-900',
+                      in_progress: 'bg-blue-200 text-blue-900',
+                      fulfilled: 'bg-green-200 text-green-900',
+                      on_hold: 'bg-red-200 text-red-900',
+                      cancelled: 'bg-gray-200 text-gray-900'
+                    }[order.status]
+                  }`}>
+                    {order.status.replace('_', ' ')}
+                  </span>
+                </td>
+                <td className="p-3">
                   <select
-                    className={`rounded px-2 py-1 ${STATUS_COLORS[order.status]}`}
-                    value={order.status}
-                    onChange={e => updateOrder(order.id, { status: e.target.value })}
+                    className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'}`}
+                    value={order.granular_status}
+                    onChange={e => updateOrder(order.id, { granular_status: e.target.value })}
                   >
-                    {STATUS_OPTIONS.filter(opt => opt.value !== 'all').map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    {GRANULAR_STATUS_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="p-3">
+                  <select
+                    className="input w-full"
+                    value={order.assignee_id || ''}
+                    onChange={e => updateOrder(order.id, { assignee_id: e.target.value || null })}
+                  >
+                    <option value="">Unassigned</option>
+                    {operationsUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
                     ))}
                   </select>
                 </td>
