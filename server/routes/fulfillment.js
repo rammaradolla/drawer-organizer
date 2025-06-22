@@ -224,25 +224,34 @@ router.patch('/orders/:orderId', async (req, res) => {
     auditLogPayload.old_values = JSON.stringify(auditLogPayload.old_values);
     auditLogPayload.new_values = JSON.stringify(auditLogPayload.new_values);
 
-    await supabase.from('order_audit_log').insert(auditLogPayload);
+    const { error: auditError } = await supabase.from('order_audit_log').insert(auditLogPayload);
+
+    if (auditError) {
+      // Non-blocking: We will report this error but not fail the whole request.
+      console.error('Failed to insert audit log:', auditError.message);
+    }
 
     // EMAIL NOTIFICATIONS
-    if (status && status !== oldOrder.status) {
-      // Status changed
-      await emailService.sendOrderStatusUpdate(orderId, oldOrder.status, status, req.user);
-      if (status === 'blocked') {
-        await emailService.sendOrderBlockedNotification(orderId, blocker_reason, req.user);
-      } else if (status === 'cancelled') {
-        await emailService.sendOrderCancelledNotification(orderId, notes, req.user);
-      } else if (status === 'fulfilled' && updatedOrder.tracking_number) {
+    try {
+      if (status && status !== oldOrder.status) {
+        // Status changed
+        await emailService.sendOrderStatusUpdate(orderId, oldOrder.status, status, req.user);
+        if (status === 'blocked') {
+          await emailService.sendOrderBlockedNotification(orderId, blocker_reason, req.user);
+        } else if (status === 'cancelled') {
+          await emailService.sendOrderCancelledNotification(orderId, notes, req.user);
+        } else if (status === 'fulfilled' && updatedOrder.tracking_number) {
+          await emailService.sendTrackingUpdate(orderId, req.user);
+        }
+      } else if (tracking_number && status === oldOrder.status) {
+        // Tracking number added/updated but status didn't change
         await emailService.sendTrackingUpdate(orderId, req.user);
       }
-    } else if (tracking_number && status === oldOrder.status) {
-      // Tracking number added/updated but status didn't change
-      await emailService.sendTrackingUpdate(orderId, req.user);
+      // Optionally, notify operations team
+      await emailService.sendOperationsNotification(orderId, status || 'update', req.user);
+    } catch (emailError) {
+      console.error('Email notification failed, but continuing request. Error:', emailError.message);
     }
-    // Optionally, notify operations team
-    await emailService.sendOperationsNotification(orderId, status || 'update', req.user);
 
     res.json({
       success: true,

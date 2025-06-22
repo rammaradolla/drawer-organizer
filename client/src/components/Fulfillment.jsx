@@ -29,7 +29,7 @@ export default function Fulfillment() {
   const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [showAudit, setShowAudit] = useState(false);
+  const [auditedOrderId, setAuditedOrderId] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
 
   useEffect(() => {
@@ -61,12 +61,23 @@ export default function Fulfillment() {
       },
       body: JSON.stringify(updates),
     });
-    if (res.ok) fetchOrders();
+
+    if (res.ok) {
+      fetchOrders();
+      if (auditedOrderId === orderId) {
+        openAuditLog(orderId, false);
+      }
+    } else {
+      const data = await res.json().catch(() => ({})); // Handle cases where body is not JSON
+      alert('Failed to update order: ' + (data.message || 'Unknown server error'));
+    }
   }
 
-  async function openAuditLog(orderId) {
-    setShowAudit(true);
-    setAuditLog([]);
+  async function openAuditLog(orderId, clearPrevious = true) {
+    setAuditedOrderId(orderId);
+    if (clearPrevious) {
+      setAuditLog([]);
+    }
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
     const res = await fetch(`/api/fulfillment/orders/${orderId}/audit`, {
@@ -170,10 +181,10 @@ export default function Fulfillment() {
         </div>
       )}
       {/* Audit log modal */}
-      {showAudit && (
+      {auditedOrderId && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white rounded shadow-lg p-6 w-full max-w-2xl relative">
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800" onClick={() => setShowAudit(false)}>&times;</button>
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800" onClick={() => setAuditedOrderId(null)}>&times;</button>
             <h3 className="text-xl font-bold mb-2">Order Audit Log</h3>
             <div className="overflow-y-auto max-h-64">
               {auditLog.length === 0 ? (
