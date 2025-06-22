@@ -36,16 +36,42 @@ export const CheckoutSuccess: React.FC = () => {
         if (error) throw error;
         setOrder(data);
 
-        // Always clear Redux cart and show confirmation
+        // Always clear Redux cart first
         dispatch(clearCart());
-        setShowConfirmation(true);
+        console.log('Redux cart cleared');
 
-        // Only clear Supabase cart if user is present
+        // Clear Supabase cart if user is present
         if (user) {
-          await clearCartInSupabase(user.id);
+          try {
+            await clearCartInSupabase(user.id);
+            console.log('Supabase cart cleared for user:', user.id);
+          } catch (clearError) {
+            console.error('Failed to clear Supabase cart:', clearError);
+            // Don't fail the entire process if cart clearing fails
+          }
         }
+
+        // Set flag to ensure cart stays cleared even after navigation
+        sessionStorage.setItem('justCompletedCheckout', 'true');
+
+        setShowConfirmation(true);
       } catch (err) {
+        console.error('Error in fetchOrder:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch order');
+        
+        // Even if order fetch fails, still try to clear the cart
+        dispatch(clearCart());
+        if (user) {
+          try {
+            await clearCartInSupabase(user.id);
+            console.log('Cart cleared despite order fetch error');
+          } catch (clearError) {
+            console.error('Failed to clear cart after order fetch error:', clearError);
+          }
+        }
+        
+        // Set flag even in error case to ensure cart stays cleared
+        sessionStorage.setItem('justCompletedCheckout', 'true');
       } finally {
         setLoading(false);
       }

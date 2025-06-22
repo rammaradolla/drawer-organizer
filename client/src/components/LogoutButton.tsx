@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { clearCart } from '../redux/cartSlice';
 import { signOut } from '../utils/auth';
 
 const LogoutButton: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const dispatch = useDispatch();
 
   const handleLogout = async () => {
     setLoading(true);
     try {
       await signOut();
+      // Clear the cart when user signs out
+      dispatch(clearCart());
+      // Clear checkout completion flag
+      sessionStorage.removeItem('justCompletedCheckout');
+      console.log('Cart cleared on logout');
     } catch (e) {
+      console.error('Logout failed:', e);
       alert('Logout failed.');
     } finally {
       setLoading(false);

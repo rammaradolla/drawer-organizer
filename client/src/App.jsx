@@ -15,6 +15,7 @@ import CheckoutButton from './components/CheckoutButton';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import MyOrders from './components/MyOrders';
 import Fulfillment from './components/Fulfillment';
+import { CheckoutSuccess } from './components/CheckoutSuccess';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -46,7 +47,10 @@ function App() {
     const syncCart = async () => {
       if (user) {
         try {
+          console.log('Syncing cart for user:', user.id);
           const items = await fetchCartItems(user.id);
+          console.log('Fetched cart items:', items.length);
+          
           const mapped = items.map(item => {
             const design = item.designs;
             const layout = JSON.parse(design.json_layout);
@@ -73,16 +77,38 @@ function App() {
             });
           });
           dispatch(setCart(mapped));
+          console.log('Cart synced successfully, items:', mapped.length);
         } catch (e) {
           console.error('Failed to sync cart:', e);
+          // If sync fails, clear the cart to avoid showing stale data
+          dispatch(setCart([]));
         }
       } else {
+        console.log('No user, clearing cart');
         dispatch(setCart([]));
       }
     };
     syncCart();
     // eslint-disable-next-line
   }, [user, location.pathname]);
+
+  // Clear cart when user changes (sign out/in)
+  React.useEffect(() => {
+    if (!user) {
+      console.log('User signed out, clearing cart');
+      dispatch(setCart([]));
+    }
+  }, [user, dispatch]);
+
+  // Check if user just completed checkout and clear cart if needed
+  React.useEffect(() => {
+    const justCompletedCheckout = sessionStorage.getItem('justCompletedCheckout');
+    if (justCompletedCheckout === 'true' && user) {
+      console.log('User just completed checkout, ensuring cart is cleared');
+      dispatch(setCart([]));
+      sessionStorage.removeItem('justCompletedCheckout');
+    }
+  }, [user, dispatch]);
 
   // Helper to parse dimensions string (e.g., "30x20x6")
   function parseDimensions(dimStr) {
@@ -211,6 +237,7 @@ function App() {
         <Routes>
           <Route path="/orders" element={<MyOrders />} />
           <Route path="/fulfillment" element={<Fulfillment />} />
+          <Route path="/checkout/success" element={<CheckoutSuccess />} />
           <Route path="*" element={
             <div className="flex flex-row w-full h-full">
               {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
