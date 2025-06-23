@@ -84,10 +84,12 @@ const createCheckoutSession = async (userId, cartItems) => {
 };
 
 const handleWebhook = async (event) => {
+  console.log(`[Stripe Webhook] Received event: ${event.type}`);
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;
+        console.log(`[Stripe Webhook] Processing checkout.session.completed for session: ${session.id}`);
         
         // Get the order first to get the old status
         const { data: order, error: orderError } = await supabase
@@ -96,15 +98,37 @@ const handleWebhook = async (event) => {
           .eq('stripe_checkout_id', session.id)
           .single();
 
-        if (orderError) throw orderError;
+        if (orderError) {
+          console.error(`[Stripe Webhook] Error finding order with session ID ${session.id}:`, orderError);
+          throw orderError;
+        }
+
+        if (!order) {
+            console.error(`[Stripe Webhook] Order with session ID ${session.id} not found.`);
+            return; // Stop processing if order not found
+        }
+        
+        console.log(`[Stripe Webhook] Found order ${order.id}. Current status: ${order.status}`);
 
         // Update order status in Supabase
-        const { error } = await supabase
+        const updates = {
+          status: 'in_progress',
+          granular_status: 'Payment Confirmed',
+        };
+        
+        const { data: updatedOrder, error: updateError } = await supabase
           .from('orders')
-          .update({ status: 'paid' })
-          .eq('stripe_checkout_id', session.id);
+          .update(updates)
+          .eq('stripe_checkout_id', session.id)
+          .select()
+          .single();
 
-        if (error) throw error;
+        if (updateError) {
+          console.error(`[Stripe Webhook] Error updating order ${order.id}:`, updateError);
+          throw updateError;
+        }
+
+        console.log(`[Stripe Webhook] Successfully updated order ${order.id} to status: in_progress / Payment Confirmed`);
 
         // Create audit log entry for payment
         await supabase
@@ -112,19 +136,23 @@ const handleWebhook = async (event) => {
           .insert({
             order_id: order.id,
             action: 'PAYMENT_RECEIVED',
-            old_values: JSON.stringify({ status: order.status }),
-            new_values: JSON.stringify({ status: 'paid' }),
+            old_values: JSON.stringify({ status: order.status, granular_status: order.granular_status }),
+            new_values: JSON.stringify(updates),
             updated_by: order.user_id, // Use the customer's user ID
-            notes: `Payment completed via Stripe. Order status changed from ${order.status} to paid.`
+            notes: `Payment completed via Stripe. Status changed to In Progress / Payment Confirmed.`
           });
+        
+        console.log(`[Stripe Webhook] Audit log created for order ${order.id}.`);
 
         break;
       }
       // Add other webhook event handlers as needed
+      default:
+        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
     }
   } catch (error) {
-    console.error('Error handling webhook:', error);
-    throw error;
+    console.error('[Stripe Webhook] Unhandled error in webhook handler:', error);
+    // Do not throw error here to prevent Stripe from resending the webhook for unhandled errors
   }
 };
 

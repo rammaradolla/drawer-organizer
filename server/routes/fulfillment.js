@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireAnyRole } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 const { getCustomerFacingStatus, ALL_OPERATIONAL_STATUSES } = require('../utils/statusConstants');
 
@@ -10,13 +10,14 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Apply authentication and role check to all fulfillment routes
 console.log('Authenticating fulfillment routes', authenticateToken);
 router.use(authenticateToken);
-router.use(requireRole('operations'));
+router.use(requireAnyRole(['operations', 'admin']));
 
 // Get all orders with filtering and pagination
 router.get('/orders', async (req, res) => {
   try {
     const {
       status,
+      granular_status,
       search,
       page = 1,
       limit = 20,
@@ -51,6 +52,11 @@ router.get('/orders', async (req, res) => {
     // Apply status filter (cannot be done in the RPC easily without more complexity)
     if (status && status !== 'all') {
       query = query.eq('status', status);
+    }
+    
+    // Apply granular status filter
+    if (granular_status && granular_status !== 'all') {
+      query = query.eq('granular_status', granular_status);
     }
 
     // Apply sorting

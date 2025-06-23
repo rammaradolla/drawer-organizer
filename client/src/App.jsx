@@ -12,10 +12,11 @@ import { setCart } from './redux/cartSlice';
 import { fetchCartItems } from './utils/supabaseDesigns';
 import { createCartItem } from './utils/createCartItem';
 import CheckoutButton from './components/CheckoutButton';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import MyOrders from './components/MyOrders';
 import Fulfillment from './components/Fulfillment';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
+import AdminDashboard from './components/AdminDashboard';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -36,6 +37,7 @@ function App() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // User context
   const { user, loading } = useUser();
@@ -109,6 +111,49 @@ function App() {
       sessionStorage.removeItem('justCompletedCheckout');
     }
   }, [user, dispatch]);
+
+  // Redirect operations users to fulfillment dashboard
+  React.useEffect(() => {
+    if (user && user.role === 'operations' && location.pathname === '/') {
+      console.log('Operations user detected, redirecting to fulfillment');
+      navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
+  // Redirect admin users to admin dashboard
+  React.useEffect(() => {
+    if (user && user.role === 'admin' && location.pathname === '/') {
+      console.log('Admin user detected, redirecting to admin dashboard');
+      navigate('/admin', { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
+  // Prevent operations users from accessing the main designer page
+  React.useEffect(() => {
+    if (user && user.role === 'operations' && location.pathname === '/' && !loading) {
+      console.log('Operations user trying to access main page, redirecting to fulfillment');
+      navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, loading, navigate]);
+
+  // Prevent operations users from accessing the orders page
+  React.useEffect(() => {
+    if (user && user.role === 'operations' && location.pathname === '/orders' && !loading) {
+      console.log('Operations user trying to access orders page, redirecting to fulfillment');
+      navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, loading, navigate]);
+
+  // Update page title for operations users
+  React.useEffect(() => {
+    if (user && user.role === 'operations') {
+      document.title = 'Fulfillment Dashboard - Drawer Organizer';
+    } else if (user && user.role === 'admin') {
+      document.title = 'Admin Dashboard - Drawer Organizer';
+    } else {
+      document.title = 'Drawer Organizer Designer';
+    }
+  }, [user]);
 
   // Helper to parse dimensions string (e.g., "30x20x6")
   function parseDimensions(dimStr) {
@@ -207,18 +252,30 @@ function App() {
       <div className="w-full px-4">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
-            Drawer Organizer Designer
+            {user && user.role === 'operations' ? 'Fulfillment Dashboard' : 
+             user && user.role === 'admin' ? 'Admin Dashboard' : 
+             'Drawer Organizer Designer'}
           </h1>
           <div className="flex items-center gap-6">
-            <Link to="/" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Home</Link>
-            <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
-            {/* Fulfillment link for operations and admin */}
+            {/* Show Home link for customers only */}
+            {(!user || user.role === 'customer') && (
+              <Link to="/" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Home</Link>
+            )}
+            {/* Show My Orders link for customers only */}
+            {(!user || user.role === 'customer') && (
+              <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+            )}
+            {/* Fulfillment link - primary for operations, secondary for admin */}
             {user && (user.role === 'operations' || user.role === 'admin') && (
-              <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold">
-                Fulfillment
+              <Link to="/fulfillment" className={`px-4 py-2 font-semibold rounded ${
+                user.role === 'operations' 
+                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+              }`}>
+                {user.role === 'operations' ? 'Dashboard' : 'Fulfillment'}
               </Link>
             )}
-            {/* Admin-only link example */}
+            {/* Admin-only link */}
             {user && user.role === 'admin' && (
               <Link to="/admin" className="px-4 py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">
                 Admin Panel
@@ -233,38 +290,67 @@ function App() {
             </div>
           </div>
         </div>
-        <InfoBanner />
+        {/* Hide InfoBanner for operations and admin users */}
+        {(!user || user.role === 'customer') && <InfoBanner />}
         <Routes>
           <Route path="/orders" element={<MyOrders />} />
           <Route path="/fulfillment" element={<Fulfillment />} />
           <Route path="/checkout/success" element={<CheckoutSuccess />} />
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={
             <div className="flex flex-row w-full h-full">
-              {/* Main Editor (CanvasEditor now manages dimensions and DrawerSetup) */}
-              <div className="flex-[2_2_0%] min-w-0">
-                <CanvasEditor
-                  key={resetKey}
-                  ref={canvasEditorRef}
-                  onCompartmentsChange={setCompartments}
-                  onClear={handleEditorClear}
-                  addToCartButtonProps={{
-                    onReset: handleEditorClear
-                  }}
-                />
-              </div>
-              {/* Cart Sidebar - Protected */}
-              <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
-                {loading ? (
-                  <div className="flex items-center justify-center h-full">Loading...</div>
-                ) : user ? (
-                  <Cart />
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full gap-4">
-                    <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
-                    <LoginButton id="login-btn" />
+              {/* Main Editor - Show only for customers */}
+              {(!user || user.role === 'customer') ? (
+                <>
+                  <div className="flex-[2_2_0%] min-w-0">
+                    <CanvasEditor
+                      key={resetKey}
+                      ref={canvasEditorRef}
+                      onCompartmentsChange={setCompartments}
+                      onClear={handleEditorClear}
+                      addToCartButtonProps={{
+                        onReset: handleEditorClear
+                      }}
+                    />
                   </div>
-                )}
-              </div>
+                  {/* Cart Sidebar - Protected */}
+                  <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
+                    {loading ? (
+                      <div className="flex items-center justify-center h-full">Loading...</div>
+                    ) : user ? (
+                      <Cart />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-4">
+                        <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
+                        <LoginButton id="login-btn" />
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* Operations and Admin users see a message here if they navigate to the root path */
+                <div className="w-full flex items-center justify-center">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Welcome</h2>
+                    <p className="text-gray-600 mb-4">Please use the navigation links above to manage the platform.</p>
+                    {user && user.role === 'operations' && (
+                       <Link to="/fulfillment" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                         Go to Fulfillment Dashboard
+                       </Link>
+                    )}
+                     {user && user.role === 'admin' && (
+                       <Link to="/fulfillment" className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors mr-2">
+                         Go to Fulfillment
+                       </Link>
+                    )}
+                     {user && user.role === 'admin' && (
+                       <Link to="/admin" className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                         Go to Admin Panel
+                       </Link>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           } />
         </Routes>

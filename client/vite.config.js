@@ -17,7 +17,11 @@ export default defineConfig({
     },
     // Proxy API requests to backend server
     proxy: {
-      '/api': 'http://localhost:3000',
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true, // Recommended for virtual hosts
+        secure: false, // Recommended for local development
+      },
     },
   },
   define: {

@@ -3,6 +3,25 @@ const router = express.Router();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { createCheckoutSession, handleWebhook } = require('../services/stripeService');
 
+// This handler will be registered separately in app.js with a raw body parser.
+const webhookHandler = async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  try {
+    const event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+
+    await handleWebhook(event);
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(400).send(`Webhook Error: ${error.message}`);
+  }
+};
+
 // Create checkout session
 router.post('/create-checkout-session', async (req, res) => {
   try {
@@ -20,23 +39,4 @@ router.post('/create-checkout-session', async (req, res) => {
   }
 });
 
-// Stripe webhook handler
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig = req.headers['stripe-signature'];
-
-  try {
-    const event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-
-    await handleWebhook(event);
-    res.json({ received: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    res.status(400).send(`Webhook Error: ${error.message}`);
-  }
-});
-
-module.exports = router; 
+module.exports = { router, webhookHandler }; 

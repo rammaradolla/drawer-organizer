@@ -1,8 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useUser } from './UserProvider';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useDebounce } from '../hooks/useDebounce';
+
+// This is a simplified version of the backend constants.
+// In a real-world app, you might fetch this from the server or use a shared module.
+const STATUSES = {
+  pending: { operational_statuses: ["Awaiting Payment"] },
+  in_progress: { operational_statuses: ["Payment Confirmed", "Design Review", "Material Sourcing", "Cutting & Milling", "Assembly", "Sanding & Finishing", "Final Quality Check"] },
+  fulfilled: { operational_statuses: ["Packaging", "Awaiting Carrier Pickup", "Shipped", "Delivered"] },
+  on_hold: { operational_statuses: ["Blocked", "On Hold - Awaiting Customer Response", "On Hold - Supply Issue", "On Hold - Shop Backlog"] },
+  cancelled: { operational_statuses: ["Cancelled"] },
+};
 
 const GRANULAR_STATUS_OPTIONS = [
   // pending
@@ -59,6 +69,7 @@ export default function Fulfillment() {
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
+  const [operationalStatus, setOperationalStatus] = useState('all');
   const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -66,11 +77,36 @@ export default function Fulfillment() {
   const [auditLog, setAuditLog] = useState([]);
   const [operationsUsers, setOperationsUsers] = useState([]);
 
+  const operationalStatusOptions = useMemo(() => {
+    if (status === 'all') {
+      return GRANULAR_STATUS_OPTIONS;
+    }
+    return STATUSES[status]?.operational_statuses || [];
+  }, [status]);
+
+  useEffect(() => {
+    // If the selected operational status is no longer valid for the new customer status, reset it.
+    if (operationalStatus !== 'all' && !operationalStatusOptions.includes(operationalStatus)) {
+      setOperationalStatus('all');
+    }
+  }, [status, operationalStatus, operationalStatusOptions]);
+
+  // Update page title for operations users
+  useEffect(() => {
+    if (user && user.role === 'operations') {
+      document.title = 'Fulfillment Dashboard - Drawer Organizer';
+    } else if (user && user.role === 'admin') {
+      document.title = 'Fulfillment Management - Drawer Organizer';
+    } else {
+      document.title = 'Fulfillment - Drawer Organizer';
+    }
+  }, [user]);
+
   useEffect(() => {
     fetchOrders();
     fetchOperationsUsers();
     // eslint-disable-next-line
-  }, [status, debouncedSearch]);
+  }, [status, operationalStatus, debouncedSearch]);
 
   async function fetchOperationsUsers() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -88,7 +124,7 @@ export default function Fulfillment() {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
-    let url = `/api/fulfillment/orders?status=${status}&search=${encodeURIComponent(debouncedSearch)}`;
+    let url = `/api/fulfillment/orders?status=${status}&granular_status=${operationalStatus}&search=${encodeURIComponent(debouncedSearch)}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -136,7 +172,9 @@ export default function Fulfillment() {
 
   return (
     <div className="max-w-7xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Fulfillment Dashboard</h2>
+      <h2 className="text-2xl font-bold mb-4">
+        {user && user.role === 'admin' ? 'Fulfillment Management' : 'Fulfillment Dashboard'}
+      </h2>
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
         <input
           type="text"
@@ -156,6 +194,16 @@ export default function Fulfillment() {
           <option value="on_hold">On Hold</option>
           <option value="fulfilled">Fulfilled</option>
           <option value="cancelled">Cancelled</option>
+        </select>
+        <select
+          className="input w-full md:w-48"
+          value={operationalStatus}
+          onChange={e => setOperationalStatus(e.target.value)}
+        >
+          <option value="all">All Operational Statuses</option>
+          {operationalStatusOptions.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
         </select>
       </div>
       <div className="overflow-x-auto bg-white rounded shadow">

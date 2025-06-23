@@ -1,11 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+
+// Load environment variables right away
+dotenv.config();
+
 const path = require('path');
 const { PORTS, SERVER_CONFIG } = require('./config/ports');
-
-// Load environment variables
-dotenv.config();
+const { router: stripeRouter, webhookHandler: stripeWebhookHandler } = require('./routes/stripe');
 
 const app = express();
 
@@ -16,8 +18,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Special handling for Stripe webhook route
-app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
+// Stripe webhook must be registered before express.json() to receive raw body
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
 // Regular middleware for other routes
 app.use(express.json());
@@ -26,8 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 app.use('/api/design', require('./routes/design'));
 app.use('/api/order', require('./routes/order'));
-app.use('/api/stripe', require('./routes/stripe'));
+app.use('/api/stripe', stripeRouter); // Use the router for other stripe routes
 app.use('/api/fulfillment', require('./routes/fulfillment'));
+app.use('/api/admin', require('./routes/admin'));
 app.use('/api/test', require('./routes/test')); // Test route (remove in production)
 
 // Error handling middleware
