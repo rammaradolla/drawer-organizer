@@ -91,17 +91,6 @@ export default function Fulfillment() {
     }
   }, [status, operationalStatus, operationalStatusOptions]);
 
-  // Update page title for operations users
-  useEffect(() => {
-    if (user && user.role === 'operations') {
-      document.title = 'Fulfillment Dashboard - Drawer Organizer';
-    } else if (user && user.role === 'admin') {
-      document.title = 'Fulfillment Management - Drawer Organizer';
-    } else {
-      document.title = 'Fulfillment - Drawer Organizer';
-    }
-  }, [user]);
-
   useEffect(() => {
     fetchOrders();
     fetchOperationsUsers();
@@ -171,10 +160,8 @@ export default function Fulfillment() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">
-        {user && user.role === 'admin' ? 'Fulfillment Management' : 'Fulfillment Dashboard'}
-      </h2>
+    <div className="bg-white p-8 rounded-lg shadow-md w-full">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">Fulfillment Dashboard</h2>
       <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
         <input
           type="text"

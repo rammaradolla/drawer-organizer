@@ -144,16 +144,23 @@ function App() {
     }
   }, [user, location.pathname, loading, navigate]);
 
-  // Update page title for operations users
+  // Update page title based on user role and current page
   React.useEffect(() => {
-    if (user && user.role === 'operations') {
-      document.title = 'Fulfillment Dashboard - Drawer Organizer';
-    } else if (user && user.role === 'admin') {
-      document.title = 'Admin Dashboard - Drawer Organizer';
-    } else {
-      document.title = 'Drawer Organizer Designer';
-    }
-  }, [user]);
+    const getTitle = () => {
+      if (location.pathname.startsWith('/fulfillment')) {
+        return 'Fulfillment Dashboard - Drawer Organizer';
+      }
+      if (location.pathname.startsWith('/admin')) {
+        return 'Admin Dashboard - Drawer Organizer';
+      }
+      if (location.pathname.startsWith('/orders')) {
+        return 'My Orders - Drawer Organizer';
+      }
+      // Default title for customers on the main page
+      return 'Drawer Organizer Designer';
+    };
+    document.title = getTitle();
+  }, [user, location.pathname]);
 
   // Helper to parse dimensions string (e.g., "30x20x6")
   function parseDimensions(dimStr) {
@@ -252,9 +259,7 @@ function App() {
       <div className="w-full px-4">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
-            {user && user.role === 'operations' ? 'Fulfillment Dashboard' : 
-             user && user.role === 'admin' ? 'Admin Dashboard' : 
-             'Drawer Organizer Designer'}
+            Drawer Organizer Designer
           </h1>
           <div className="flex items-center gap-6">
             {/* Show Home link for customers only */}
