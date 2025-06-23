@@ -3,6 +3,7 @@ import { useUser } from './UserProvider';
 import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useDebounce } from '../hooks/useDebounce';
+import apiClient from '../utils/apiClient';
 
 // This is a simplified version of the backend constants.
 // In a real-world app, you might fetch this from the server or use a shared module.
@@ -70,6 +71,7 @@ export default function Fulfillment() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [operationalStatus, setOperationalStatus] = useState('all');
+  const [assignee, setAssignee] = useState('all');
   const debouncedSearch = useDebounce(search, 500); // 500ms debounce delay
   const [loading, setLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -95,7 +97,7 @@ export default function Fulfillment() {
     fetchOrders();
     fetchOperationsUsers();
     // eslint-disable-next-line
-  }, [status, operationalStatus, debouncedSearch]);
+  }, [status, operationalStatus, debouncedSearch, assignee]);
 
   async function fetchOperationsUsers() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -109,18 +111,25 @@ export default function Fulfillment() {
     }
   }
 
-  async function fetchOrders() {
+  const fetchOrders = async () => {
     setLoading(true);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    let url = `/api/fulfillment/orders?status=${status}&granular_status=${operationalStatus}&search=${encodeURIComponent(debouncedSearch)}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const data = await res.json();
-    setOrders(data.orders || []);
-    setLoading(false);
-  }
+    try {
+      const { data } = await apiClient.get('/fulfillment/orders', {
+        params: {
+          status,
+          granular_status: operationalStatus,
+          search: debouncedSearch,
+          assignee,
+        },
+      });
+      setOrders(data.orders || []);
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+      setOrders([]); // Set to empty array on error to prevent crashes
+    } finally {
+      setLoading(false);
+    }
+  };
 
   async function updateOrder(orderId, updates) {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -162,36 +171,55 @@ export default function Fulfillment() {
   return (
     <div className="bg-white p-8 rounded-lg shadow-md w-full">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Fulfillment Dashboard</h2>
-      <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
-        <input
-          type="text"
-          placeholder="Search by email, order ID, tracking..."
-          className="input w-full md:w-72"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      <div className="mb-6 flex items-center gap-4 flex-wrap">
+        <div className="flex-grow min-w-[200px]">
+          <input
+            type="text"
+            placeholder="Search by email, order ID, tracking..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg"
+          />
+        </div>
         <select
-          className="input w-full md:w-48"
           value={status}
-          onChange={e => setStatus(e.target.value)}
+          onChange={(e) => setStatus(e.target.value)}
+          className="px-4 py-2 border rounded-lg bg-white"
         >
           <option value="all">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="in_progress">In Progress</option>
-          <option value="on_hold">On Hold</option>
-          <option value="fulfilled">Fulfilled</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <select
-          className="input w-full md:w-48"
-          value={operationalStatus}
-          onChange={e => setOperationalStatus(e.target.value)}
-        >
-          <option value="all">All Operational Statuses</option>
-          {operationalStatusOptions.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
+          {Object.keys(STATUSES).map(statusKey => (
+            <option key={statusKey} value={statusKey}>
+              {STATUSES[statusKey].label}
+            </option>
           ))}
         </select>
+        <select
+          value={operationalStatus}
+          onChange={(e) => setOperationalStatus(e.target.value)}
+          className="px-4 py-2 border rounded-lg bg-white"
+          disabled={operationalStatusOptions.length === 0}
+        >
+          <option value="all">All Operational Statuses</option>
+          {operationalStatusOptions.map(opStatus => (
+            <option key={opStatus} value={opStatus}>
+              {opStatus}
+            </option>
+          ))}
+        </select>
+        {user && user.role === 'admin' && (
+          <select
+            value={assignee}
+            onChange={(e) => setAssignee(e.target.value)}
+            className="px-4 py-2 border rounded-lg bg-white"
+          >
+            <option value="all">All Assignees</option>
+            {operationsUsers.map(opUser => (
+              <option key={opUser.id} value={opUser.id}>
+                {opUser.name || opUser.email}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
       <div className="overflow-x-auto bg-white rounded shadow">
         <table className="min-w-full text-sm">

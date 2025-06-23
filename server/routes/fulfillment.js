@@ -12,26 +12,45 @@ console.log('Authenticating fulfillment routes', authenticateToken);
 router.use(authenticateToken);
 router.use(requireAnyRole(['operations', 'admin']));
 
-// Get all orders with filtering and pagination
+// Get all orders with optional filtering
 router.get('/orders', async (req, res) => {
   try {
     const {
       status,
       granular_status,
       search,
+      assignee,
       page = 1,
       limit = 20,
       sortBy = 'created_at',
       sortOrder = 'desc'
     } = req.query;
 
-    let query;
+    let query = supabase
+      .from('orders')
+      .select(`
+        *,
+        assignee_data:profiles(name)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+    if (granular_status && granular_status !== 'all') {
+      query = query.eq('granular_status', granular_status);
+    }
+    if (assignee && assignee !== 'all') {
+      query = query.eq('assignee_id', assignee);
+    }
     if (search) {
-      // Use the RPC function for searching
-      query = supabase.rpc('search_orders', { search_term: search });
-    } else {
-      // Use the standard query for non-search requests
-      query = supabase.from('orders');
+      // Use textSearch for composable full-text search.
+      // The 'fts' column in the 'orders' table should be a tsvector.
+      // The 'english' argument is the text search configuration.
+      query = query.textSearch('fts', search, {
+        type: 'websearch',
+        config: 'english'
+      });
     }
 
     // Always select the data and the related user info
@@ -48,16 +67,6 @@ router.get('/orders', async (req, res) => {
         name
       )
     `);
-
-    // Apply status filter (cannot be done in the RPC easily without more complexity)
-    if (status && status !== 'all') {
-      query = query.eq('status', status);
-    }
-    
-    // Apply granular status filter
-    if (granular_status && granular_status !== 'all') {
-      query = query.eq('granular_status', granular_status);
-    }
 
     // Apply sorting
     query = query.order(sortBy, { ascending: sortOrder === 'asc' });
