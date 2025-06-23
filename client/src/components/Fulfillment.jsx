@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useDebounce } from '../hooks/useDebounce';
 import apiClient from '../utils/apiClient';
+import OrderDetailsModal from './OrderDetailsModal';
 
 // This is a simplified version of the backend constants.
 // In a real-world app, you might fetch this from the server or use a shared module.
@@ -310,16 +311,9 @@ export default function Fulfillment() {
           </tbody>
         </table>
       </div>
-      {/* Order details modal */}
-      {selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-2xl relative">
-            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800" onClick={() => setSelectedOrder(null)}>&times;</button>
-            <h3 className="text-xl font-bold mb-2">Order Details</h3>
-            <pre className="bg-gray-100 rounded p-2 text-xs overflow-x-auto max-h-64">{JSON.stringify(selectedOrder, null, 2)}</pre>
-          </div>
-        </div>
-      )}
+      
+      <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+
       {/* Audit log modal */}
       {auditedOrderId && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
