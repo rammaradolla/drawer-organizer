@@ -190,7 +190,7 @@ const DimensionArrow = ({ start, end, label, offset = 20 }) => {
 };
 
 const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButtonProps }, ref) => {
-  const [dimensions, setDimensions] = useState({ width: 30, depth: 20, height: 6 });
+  const [dimensions, setDimensions] = useState({ width: 30, depth: 20, height: 3 });
   const [blocks, setBlocks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [scale, setScale] = useState(1);

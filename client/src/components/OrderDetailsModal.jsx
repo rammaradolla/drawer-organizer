@@ -7,33 +7,41 @@ const DetailRow = ({ label, value, className = '' }) => (
   </div>
 );
 
-const CartItemCard = ({ item }) => (
-  <div className="bg-gray-50 p-3 rounded-lg border print:border-none print:shadow-none print:break-after-page">
-    <div className="flex flex-row gap-4 print:flex-col">
-      <div className="flex flex-row space-x-2 print:flex-col print:space-x-0 print:gap-4">
-        {item.image2D && (
-          <a href={item.image2D} target="_blank" rel="noopener noreferrer" title="Click to open 2D image in a new tab" className="print:w-full">
-            <img src={item.image2D} alt="2D Design" className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
-          </a>
-        )}
-        {item.image3D && (
-          <a href={item.image3D} target="_blank" rel="noopener noreferrer" title="Click to open 3D image in a new tab" className="print:w-full">
-            <img src={item.image3D} alt="3D Design" className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
-          </a>
-        )}
-      </div>
-      <div className="flex-1">
-        <h4 className="font-bold">{item.wood_type} Organizer</h4>
-        <p className="text-sm text-gray-600">
-          {item.dimensions?.width}" x {item.dimensions?.depth}" x {item.dimensions?.height}"
-        </p>
-        <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-        <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+const CartItemCard = ({ item }) => {
+  // Support both an array and individual fields for 3D images
+  const image3DList =
+    Array.isArray(item.image3DList) && item.image3DList.length > 0
+      ? item.image3DList
+      : [item.image3D, item.image3D_1, item.image3D_2, item.image3D_3].filter(Boolean);
+
+  return (
+    <div className="bg-gray-50 p-3 rounded-lg border print:border-none print:shadow-none print:break-after-page">
+      <div className="flex flex-row gap-4 print:flex-col">
+        <div className="flex flex-row space-x-2 print:flex-col print:space-x-0 print:gap-4">
+          {item.image2D && (
+            <a href={item.image2D} target="_blank" rel="noopener noreferrer" title="Click to open 2D image in a new tab" className="print:w-full">
+              <img src={item.image2D} alt="2D Design" className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
+            </a>
+          )}
+          {/* Render all available 3D images */}
+          {image3DList.map((img, idx) => (
+            <a key={img || idx} href={img} target="_blank" rel="noopener noreferrer" title={`Click to open 3D image ${idx + 1} in a new tab`} className="print:w-full">
+              <img src={img} alt={`3D Design ${idx + 1}`} className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
+            </a>
+          ))}
+        </div>
+        <div className="flex-1">
+          <h4 className="font-bold">{item.wood_type} Organizer</h4>
+          <p className="text-sm text-gray-600">
+            {item.dimensions?.width}" x {item.dimensions?.depth}" x {item.dimensions?.height}"
+          </p>
+          <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+          <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+        </div>
       </div>
     </div>
-  </div>
-);
-
+  );
+};
 
 export default function OrderDetailsModal({ order, onClose }) {
   const [activeTab, setActiveTab] = useState('details');

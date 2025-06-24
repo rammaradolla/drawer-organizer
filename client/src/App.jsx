@@ -24,7 +24,7 @@ const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
 const DEFAULT_DIMENSIONS = {
   width: 30,
   depth: 20,
-  height: 6
+  height: 3
 };
 
 function App() {
