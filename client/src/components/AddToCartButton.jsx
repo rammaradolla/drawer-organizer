@@ -47,6 +47,14 @@ export default function AddToCartButton({
       }
       // 3. Capture 2D and 3D previews
       const image2DDataUrl = capture2DImage(design2DRef);
+      // Set camera position before capturing 3D image
+      if (threeRenderer.current && threeRenderer.current.camera && threeRenderer.current.scene) {
+        const cam = threeRenderer.current.camera;
+        cam.position.set(16.19, 15.35, -15.93);
+        cam.lookAt(0, 0, 0);
+        cam.updateProjectionMatrix();
+        threeRenderer.current.render(threeRenderer.current.scene, cam);
+      }
       const image3DDataUrl = capture3DImage(threeRenderer.current);
       const image2DBlob = await dataUrlToBlob(image2DDataUrl);
       const image3DBlob = await dataUrlToBlob(image3DDataUrl);

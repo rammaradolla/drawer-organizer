@@ -393,11 +393,45 @@ const TextureLoadingOverlay = ({ selectedWoodType, woodTypes }) => {
   );
 };
 
+const CameraPositionDisplay = ({ camera }) => {
+  const [pos, setPos] = useState({ x: 0, y: 0, z: 0 });
+
+  // Use a ref to avoid unnecessary renders
+  const frameRef = useRef();
+
+  useEffect(() => {
+    if (!camera) return;
+    let mounted = true;
+    function update() {
+      if (!mounted) return;
+      setPos({
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z,
+      });
+      frameRef.current = requestAnimationFrame(update);
+    }
+    update();
+    return () => {
+      mounted = false;
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [camera]);
+
+  return (
+    <div className="mt-2 text-xs text-gray-700 bg-gray-100 rounded px-3 py-2 inline-block shadow border border-gray-200">
+      <span className="font-semibold">Camera Position:</span>{' '}
+      X: {pos.x.toFixed(2)}&nbsp; Y: {pos.y.toFixed(2)}&nbsp; Z: {pos.z.toFixed(2)}
+    </div>
+  );
+};
+
 // Main wrapper component
 const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, woodTypes, threeRenderer }) => {
   const [threeJS, setThreeJS] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [camera, setCamera] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -485,7 +519,7 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
         <Suspense fallback={<LoadingFallback />}>
           <Canvas
             camera={{ 
-              position: [dimensions.width * 0.5, dimensions.height * 0.8, dimensions.depth * 0.5], 
+              position: [16.19, 15.35, -15.93],
               fov: 75 
             }}
             shadows={{
@@ -498,13 +532,16 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
               alpha: false,
               preserveDrawingBuffer: true 
             }}
-            onCreated={({ gl }) => {
+            onCreated={({ gl, camera, scene }) => {
               gl.setClearColor('#f8fafc', 1);
               gl.shadowMap.enabled = true;
               gl.shadowMap.type = gl.PCFSoftShadowMap;
               if (threeRenderer) {
                 threeRenderer.current = gl;
+                threeRenderer.current.camera = camera;
+                threeRenderer.current.scene = scene;
               }
+              setCamera(camera);
             }}
             style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
           >
@@ -533,6 +570,10 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
         </Suspense>
         
         <TextureLoadingOverlay selectedWoodType={selectedWoodType} woodTypes={woodTypes} />
+      </div>
+      {/* Camera position display */}
+      <div className="flex justify-center items-center mt-2">
+        <CameraPositionDisplay camera={camera} />
       </div>
     </div>
   );
