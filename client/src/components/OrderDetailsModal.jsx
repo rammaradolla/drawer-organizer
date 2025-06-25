@@ -132,7 +132,54 @@ export default function OrderDetailsModal({ order, onClose }) {
                 <h4 className="font-bold text-lg mb-2">Items Ordered</h4>
                 <div className="space-y-4">
                   {order.cart_json?.map((item, index) => (
-                    <CartItemCard key={item.id || index} item={item} />
+                    <div key={item.id || index} className="bg-gray-50 p-3 rounded-lg border print:border-none print:shadow-none print:break-after-page">
+                      <div className="flex flex-row gap-4 print:flex-col">
+                        <div className="flex flex-row space-x-2 print:flex-col print:space-x-0 print:gap-4">
+                          {item.image2D && (
+                            <a href={item.image2D} target="_blank" rel="noopener noreferrer" title="Click to open 2D image in a new tab" className="print:w-full">
+                              <img src={item.image2D} alt="2D Design" className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
+                            </a>
+                          )}
+                          {item.image3D && (
+                            <a href={item.image3D} target="_blank" rel="noopener noreferrer" title="Click to open 3D image in a new tab" className="print:w-full">
+                              <img src={item.image3D} alt="3D Design" className="w-24 h-20 object-contain border rounded bg-white cursor-pointer hover:opacity-80 transition-opacity print:w-full print:h-auto" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-bold">{item.wood_type} Organizer</h4>
+                          <p className="text-sm text-gray-600">
+                            {item.dimensions?.width}" x {item.dimensions?.depth}" x {item.dimensions?.height}"
+                          </p>
+                          <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                          <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      {/* Customer Notes & Photo Section */}
+                      {(item.customerNotes || item.drawerPhotoUrl) && (
+                        <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex flex-col md:flex-row gap-4 print:flex-row print:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-yellow-800 mb-1">Customer Notes</div>
+                            <div className="text-sm text-yellow-900 break-words whitespace-pre-line">{item.customerNotes || <span className='italic text-gray-400'>No notes provided.</span>}</div>
+                          </div>
+                          <div className="flex-1 flex flex-col items-start min-w-0">
+                            <div className="text-xs font-semibold text-yellow-800 mb-1">Customer's Drawer Photo</div>
+                            {item.drawerPhotoUrl ? (
+                              <a href={item.drawerPhotoUrl} target="_blank" rel="noopener noreferrer">
+                                <img
+                                  src={item.drawerPhotoUrl}
+                                  alt="Customer's drawer"
+                                  className="w-32 h-28 object-contain rounded border print:w-32 print:h-28"
+                                  style={{ maxWidth: '100%', maxHeight: '160px' }}
+                                />
+                              </a>
+                            ) : (
+                              <span className='italic text-gray-400'>No photo provided.</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

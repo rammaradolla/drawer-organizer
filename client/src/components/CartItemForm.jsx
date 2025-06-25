@@ -122,15 +122,19 @@ export default function CartItemForm({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Drawer Photo (Optional)
             </label>
-            <div className="aspect-[5/3] w-full bg-gray-100 rounded-md border flex items-center justify-center mb-2">
+            <a href={photoPreview} target="_blank" rel="noopener noreferrer">
+            <div className="aspect-[5/3] h-20 bg-gray-100 rounded-md border flex items-center justify-center mb-2">
               {photoPreview && (
+                
                 <img
                   src={photoPreview}
                   alt="Drawer preview"
                   className="max-h-full max-w-full object-contain"
                 />
+                
               )}
             </div>
+            </a>
             {photoPreview && (
               <button
                 type="button"
