@@ -22,14 +22,16 @@ export async function upload2DPreviewImage(userId: string, file: Blob): Promise<
 }
 
 export async function insertDesign({
-  userId, jsonLayout, woodType, dimensions, previewUrl, preview2dUrl
+  userId, jsonLayout, woodType, dimensions, previewUrl, preview2dUrl, customerNotes, drawerPhotoUrl
 }: {
   userId: string,
   jsonLayout: any,
   woodType: string,
   dimensions: string,
   previewUrl: string,
-  preview2dUrl?: string
+  preview2dUrl?: string,
+  customerNotes?: string,
+  drawerPhotoUrl?: string
 }): Promise<string> {
   const { data, error } = await supabase
     .from('designs')
@@ -40,6 +42,8 @@ export async function insertDesign({
       dimensions,
       preview_url: previewUrl,
       preview2d_url: preview2dUrl || null,
+      customer_notes: customerNotes || null,
+      drawer_photo_url: drawerPhotoUrl || null,
     }])
     .select('id')
     .single();
@@ -90,7 +94,7 @@ export async function fetchCartItems(userId: string) {
   // Fetch cart items joined with design details
   const { data, error } = await supabase
     .from('cart_items')
-    .select(`id, quantity, design_id, designs:design_id (id, json_layout, wood_type, dimensions, preview_url, preview2d_url, created_at)`)
+    .select(`id, quantity, design_id, designs:design_id (id, json_layout, wood_type, dimensions, preview_url, preview2d_url, customer_notes, drawer_photo_url, created_at)`)
     .eq('user_id', userId);
   if (error) throw error;
   return data;
@@ -101,5 +105,17 @@ export async function clearCartInSupabase(userId: string) {
     .from('cart_items')
     .delete()
     .eq('user_id', userId);
+  if (error) throw error;
+}
+
+export async function updateDesignNotesAndPhoto(designId: string, customerNotes: string, drawerPhotoUrl: string) {
+  const { error } = await supabase
+    .from('designs')
+    .update({
+      customer_notes: customerNotes || null,
+      drawer_photo_url: drawerPhotoUrl || null,
+    })
+    .eq('id', designId);
+  
   if (error) throw error;
 } 

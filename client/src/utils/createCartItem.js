@@ -1,4 +1,4 @@
-export function createCartItem({ dimensions, layout, image2D, image3D, createdAt }) {
+export function createCartItem({ dimensions, layout, image2D, image3D, createdAt, customerNotes, drawerPhotoUrl, designId }) {
   // Calculate main area in square inches (1 square inch = $1)
   const mainArea = Math.round((dimensions.width || 0) * (dimensions.depth || 0));
 
@@ -22,6 +22,7 @@ export function createCartItem({ dimensions, layout, image2D, image3D, createdAt
 
   return {
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    designId: designId || null,
     dimensions,
     layout,
     image2D,
@@ -30,5 +31,7 @@ export function createCartItem({ dimensions, layout, image2D, image3D, createdAt
     price,
     quantity: 1,
     wood_type: layout?.selectedWoodType || 'unknown',
+    customerNotes: customerNotes || '',
+    drawerPhotoUrl: drawerPhotoUrl || '',
   };
 } 

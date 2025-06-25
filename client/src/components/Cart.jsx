@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { removeCartItem, clearCart } from '../redux/cartSlice';
+import { removeCartItem, clearCart, updateCartItem } from '../redux/cartSlice';
 import { useUser } from "./UserProvider";
 import { clearCartInSupabase } from '../utils/supabaseDesigns';
 import CheckoutButton from './CheckoutButton';
+import CartItemForm from './CartItemForm';
 import { Link } from 'react-router-dom';
 
 export default function Cart() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
   const { user, loading } = useUser();
+  const [editingItem, setEditingItem] = useState(null);
 
   const [quantities, setQuantities] = useState(() =>
     Object.fromEntries(cart.map(item => [item.id, item.quantity || 1]))
@@ -18,6 +20,16 @@ export default function Cart() {
   const handleQuantityChange = (id, val) => {
     setQuantities(q => ({ ...q, [id]: Math.max(1, val) }));
     // Optionally, update Redux and Supabase here if you want to persist quantity
+  };
+
+  const handleUpdateItem = (updatedItem) => {
+    dispatch(updateCartItem({
+      id: updatedItem.id,
+      updates: {
+        customerNotes: updatedItem.customerNotes,
+        drawerPhotoUrl: updatedItem.drawerPhotoUrl
+      }
+    }));
   };
 
   // Debug print for fulfillment view
@@ -76,7 +88,7 @@ export default function Cart() {
       </div>
       <div className="grid gap-6">
         {cart.map((item) => (
-          <div key={item.id} className="border rounded-lg p-4 flex gap-4 items-center bg-white shadow-sm">
+          <div key={item.id} className="border rounded-lg p-4 flex gap-4 items-start bg-white shadow-sm">
             <div>
               <img src={item.image2D} alt="2D Design" className="w-32 h-24 object-contain border mb-2" />
               <img src={item.image3D} alt="3D Preview" className="w-32 h-24 object-contain border" />
@@ -111,12 +123,20 @@ export default function Cart() {
                 >+</button>
               </div>
             </div>
-            <button
-              className="px-2 py-1 bg-red-400 text-white rounded hover:bg-red-600"
-              onClick={() => dispatch(removeCartItem(item.id))}
-            >
-              Remove
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                onClick={() => setEditingItem(item)}
+              >
+                {item.customerNotes || item.drawerPhotoUrl ? 'Edit' : 'Add'} Notes & Photo
+              </button>
+              <button
+                className="px-2 py-1 bg-red-400 text-white rounded hover:bg-red-600"
+                onClick={() => dispatch(removeCartItem(item.id))}
+              >
+                Remove
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -132,6 +152,15 @@ export default function Cart() {
         <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold">
           Fulfillment
         </Link>
+      )}
+
+      {/* Notes & Photo Form Modal */}
+      {editingItem && (
+        <CartItemForm
+          item={editingItem}
+          onUpdate={handleUpdateItem}
+          onClose={() => setEditingItem(null)}
+        />
       )}
     </div>
   );

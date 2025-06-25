@@ -37,6 +37,28 @@ const CartItemCard = ({ item }) => {
           </p>
           <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
           <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+          
+          {/* Customer Notes */}
+          {item.customerNotes && (
+            <div className="mt-2 p-2 bg-blue-50 rounded border-l-4 border-blue-400">
+              <div className="text-xs font-medium text-blue-800 mb-1">Customer Notes:</div>
+              <div className="text-sm text-blue-700">{item.customerNotes}</div>
+            </div>
+          )}
+
+          {/* Drawer Photo */}
+          {item.drawerPhotoUrl && (
+            <div className="mt-2">
+              <div className="text-xs font-medium text-gray-700 mb-1">Customer's Drawer Photo:</div>
+              <a href={item.drawerPhotoUrl} target="_blank" rel="noopener noreferrer" title="Click to open drawer photo in a new tab">
+                <img 
+                  src={item.drawerPhotoUrl} 
+                  alt="Customer's drawer" 
+                  className="w-24 h-20 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                />
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -17,6 +17,7 @@ import MyOrders from './components/MyOrders';
 import Fulfillment from './components/Fulfillment';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
 import AdminDashboard from './components/AdminDashboard';
+import { supabase } from './utils/supabaseClient';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -75,7 +76,10 @@ function App() {
               layout: { ...layout, dividers },
               image2D: design.preview2d_url || null,
               image3D: design.preview_url,
-              createdAt: design.created_at
+              createdAt: design.created_at,
+              customerNotes: design.customer_notes || '',
+              drawerPhotoUrl: design.drawer_photo_url || '',
+              designId: design.id
             });
           });
           dispatch(setCart(mapped));

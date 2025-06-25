@@ -79,6 +79,8 @@ export default function AddToCartButton({
         dimensions: dimensionsStr,
         previewUrl,
         preview2dUrl,
+        customerNotes: '', // Will be updated later via CartItemForm
+        drawerPhotoUrl: '', // Will be updated later via CartItemForm
       });
       // 6. Add to cart
       await addToCart(user.id, designId);
@@ -100,7 +102,8 @@ export default function AddToCartButton({
         dimensions,
         layout: { ...layout, dividers }, // add dividers to layout
         image2D: preview2dUrl,
-        image3D: previewUrl
+        image3D: previewUrl,
+        designId: designId
       });
       dispatch(addCartItem(cartItem));
       if (onReset) onReset();
