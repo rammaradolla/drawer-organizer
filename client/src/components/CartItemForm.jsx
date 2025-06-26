@@ -3,6 +3,20 @@ import { uploadDrawerPhoto, validateDrawerPhoto } from '../utils/uploadDrawerPho
 import { updateDesignNotesAndPhoto } from '../utils/supabaseDesigns';
 import { useUser } from './UserProvider';
 
+const OPERATIONAL_STAGES = [
+  "Payment Confirmed",
+  "Design Review",
+  "Material Sourcing",
+  "Cutting & Milling",
+  "Assembly",
+  "Sanding & Finishing",
+  "Final Quality Check",
+  "Packaging",
+  "Awaiting Carrier Pickup",
+  "Shipped",
+  "Delivered"
+];
+
 export default function CartItemForm({ 
   item, 
   onUpdate, 
@@ -179,6 +193,29 @@ export default function CartItemForm({
             </button>
           </div>
         </form>
+
+        {/* Operational Stages Checklist (Print-friendly) */}
+        <div className="mt-8 print:block hidden">
+          <h4 className="font-bold text-lg mb-2">Operational Stages Checklist</h4>
+          <table className="w-full border print:border-none">
+            <thead>
+              <tr>
+                <th className="text-left p-2 border-b print:border-b-0">Stage</th>
+                <th className="text-left p-2 border-b print:border-b-0">Check</th>
+                <th className="text-left p-2 border-b print:border-b-0">Assignee</th>
+              </tr>
+            </thead>
+            <tbody>
+              {OPERATIONAL_STAGES.map(stage => (
+                <tr key={stage}>
+                  <td className="p-2 border-b print:border-b-0">{stage}</td>
+                  <td className="p-2 border-b print:border-b-0 text-2xl">□</td>
+                  <td className="p-2 border-b print:border-b-0"></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

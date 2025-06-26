@@ -312,7 +312,7 @@ export default function Fulfillment() {
         </table>
       </div>
       
-      <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />
+      <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} operationsUsers={operationsUsers} />
 
       {/* Audit log modal */}
       {auditedOrderId && (

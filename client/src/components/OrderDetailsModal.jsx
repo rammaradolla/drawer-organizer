@@ -65,8 +65,29 @@ const CartItemCard = ({ item }) => {
   );
 };
 
-export default function OrderDetailsModal({ order, onClose }) {
+const OPERATIONAL_STAGES = [
+  "Payment Confirmed",
+  "Design Review",
+  "Material Sourcing",
+  "Cutting & Milling",
+  "Assembly",
+  "Sanding & Finishing",
+  "Final Quality Check",
+  "Packaging",
+  "Awaiting Carrier Pickup",
+  "Shipped",
+  "Delivered"
+];
+
+export default function OrderDetailsModal({ order, onClose, operationsUsers = [] }) {
   const [activeTab, setActiveTab] = useState('details');
+
+  // Helper to map user ID to name/email
+  const getAssigneeName = (userId) => {
+    if (!userId) return '';
+    const user = operationsUsers.find(u => u.id === userId);
+    return user ? (user.name || user.email || user.id) : userId;
+  };
 
   if (!order) return null;
 
@@ -182,6 +203,32 @@ export default function OrderDetailsModal({ order, onClose }) {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Operational Stages Checklist */}
+              <div className="mt-8">
+                <h4 className="font-bold text-lg mb-2">Operational Stages Checklist</h4>
+                <table className="w-full border">
+                  <thead>
+                    <tr>
+                      <th className="text-left p-2 border-b">Stage</th>
+                      <th className="text-left p-2 border-b">Check</th>
+                      <th className="text-left p-2 border-b">Assignee</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const currentStageIndex = OPERATIONAL_STAGES.indexOf(order.granular_status);
+                      return OPERATIONAL_STAGES.map((stage, idx) => (
+                        <tr key={stage}>
+                          <td className="p-2 border-b">{stage}</td>
+                          <td className="p-2 border-b text-2xl">{idx <= currentStageIndex ? "☑" : "□"}</td>
+                          <td className="p-2 border-b">{getAssigneeName(order.assignee_id)}</td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
