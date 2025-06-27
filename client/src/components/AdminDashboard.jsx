@@ -166,7 +166,7 @@ function AdminDashboard() {
               className="input flex-grow"
               required
             />
-            <button type="submit" className="btn-primary">Make Operator</button>
+            <button type="submit" className="btn-primary whitespace-nowrap">Make Operator</button>
           </form>
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-xl font-semibold mb-4">Current Operations Users</h3>
