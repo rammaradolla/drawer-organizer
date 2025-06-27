@@ -14,6 +14,7 @@ router.use(requireAnyRole(['operations', 'admin']));
 
 // Define operational stages for use in auto-population
 const OPERATIONAL_STAGES = [
+  "Awaiting Payment",
   "Payment Confirmed",
   "Design Review",
   "Material Sourcing",
@@ -24,7 +25,9 @@ const OPERATIONAL_STAGES = [
   "Packaging",
   "Awaiting Carrier Pickup",
   "Shipped",
-  "Delivered"
+  "Delivered",
+  "Blocked",
+  "Cancelled"
 ];
 
 // Get all orders with optional filtering
@@ -105,7 +108,7 @@ router.get('/orders', async (req, res) => {
       // Fetch all department heads for mapping
       const { data: allDeptHeads } = await supabase.from('department_heads').select('id, stage');
       // Normalize function for robust matching
-      const normalize = s => s.trim().toLowerCase();
+      const normalize = s => s.trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
       const deptHeadMap = {};
       if (allDeptHeads) {
         allDeptHeads.forEach(dh => { deptHeadMap[normalize(dh.stage)] = dh.id; });

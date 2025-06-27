@@ -235,7 +235,7 @@ function AdminDashboard() {
                       <td className="p-3">{head.email}</td>
                       <td className="p-3">{head.phone}</td>
                       <td className="p-3">
-                        <button className="text-blue-600 hover:text-blue-800 font-semibold mr-2" onClick={() => setEditingHead(head)}>Edit</button>
+                        <button className="text-blue-600 hover:text-blue-800 font-semibold mr-2" onClick={() => setEditingHead({ ...head })}>Edit</button>
                       </td>
                     </tr>
                   ))
@@ -250,38 +250,45 @@ function AdminDashboard() {
             </table>
             {editingHead && (
               <Modal onClose={() => setEditingHead(null)}>
-                <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); saveDepartmentHead(editingHead); }}>
-                  <div className="flex flex-col gap-2">
-                    <label className="font-semibold">Stage</label>
-                    <input
-                      value={editingHead.stage || ''}
-                      readOnly
-                      className="input bg-gray-100 cursor-not-allowed"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="font-semibold">Name</label>
-                    <input value={editingHead.name || ''} onChange={e => setEditingHead({ ...editingHead, name: e.target.value })} placeholder="Name" required className="input" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="font-semibold">Email</label>
-                    <input value={editingHead.email || ''} onChange={e => setEditingHead({ ...editingHead, email: e.target.value })} placeholder="Email" required className="input" />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="font-semibold">Phone</label>
-                    <input value={editingHead.phone || ''} onChange={e => setEditingHead({ ...editingHead, phone: e.target.value })} placeholder="Phone" className="input" />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
-                    <button type="button" className="px-4 py-2 bg-gray-300 text-gray-800 rounded" onClick={() => setEditingHead(null)}>Cancel</button>
-                  </div>
-                </form>
+                <EditDepartmentHeadForm
+                  head={editingHead}
+                  onSave={async (updatedHead) => { await saveDepartmentHead(updatedHead); }}
+                  onCancel={() => setEditingHead(null)}
+                />
               </Modal>
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function EditDepartmentHeadForm({ head, onSave, onCancel }) {
+  const [form, setForm] = React.useState({ ...head });
+  return (
+    <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); onSave(form); }}>
+      <div className="flex flex-col gap-2">
+        <label className="font-semibold">Stage</label>
+        <input value={form.stage || ''} readOnly className="input bg-gray-100 cursor-not-allowed" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <label className="font-semibold">Name</label>
+        <input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" required className="input" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <label className="font-semibold">Email</label>
+        <input value={form.email || ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" required className="input" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <label className="font-semibold">Phone</label>
+        <input value={form.phone || ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="Phone" className="input" />
+      </div>
+      <div className="flex gap-2 mt-2">
+        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+        <button type="button" className="px-4 py-2 bg-gray-300 text-gray-800 rounded" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
   );
 }
 
