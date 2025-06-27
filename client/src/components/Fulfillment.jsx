@@ -79,6 +79,7 @@ export default function Fulfillment() {
   const [auditedOrderId, setAuditedOrderId] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
   const [operationsUsers, setOperationsUsers] = useState([]);
+  const [departmentHeads, setDepartmentHeads] = useState([]);
 
   const operationalStatusOptions = useMemo(() => {
     if (status === 'all') {
@@ -97,6 +98,7 @@ export default function Fulfillment() {
   useEffect(() => {
     fetchOrders();
     fetchOperationsUsers();
+    fetchDepartmentHeads();
     // eslint-disable-next-line
   }, [status, operationalStatus, debouncedSearch, assignee]);
 
@@ -110,6 +112,17 @@ export default function Fulfillment() {
     if (data.success) {
       setOperationsUsers(data.users);
     }
+  }
+
+  async function fetchDepartmentHeads() {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    const res = await fetch('/api/fulfillment/department-heads', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json();
+    console.log('Fetched department heads:', data);
+    if (data.success) setDepartmentHeads(data.department_heads);
   }
 
   const fetchOrders = async () => {
@@ -214,10 +227,8 @@ export default function Fulfillment() {
             className="px-4 py-2 border rounded-lg bg-white"
           >
             <option value="all">All Assignees</option>
-            {operationsUsers.map(opUser => (
-              <option key={opUser.id} value={opUser.id}>
-                {opUser.name || opUser.email}
-              </option>
+            {departmentHeads.map(dh => (
+              <option key={dh.id} value={dh.id}>{dh.name} ({dh.email})</option>
             ))}
           </select>
         )}
@@ -274,16 +285,16 @@ export default function Fulfillment() {
                   </select>
                 </td>
                 <td className="p-3">
-                  <select
-                    className="input w-full"
-                    value={order.assignee_id || ''}
-                    onChange={e => updateOrder(order.id, { assignee_id: e.target.value || null })}
-                  >
-                    <option value="">Unassigned</option>
-                    {operationsUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
-                    ))}
-                  </select>
+                  {/* Always show department head for the current stage, for all users */}
+                  {(() => {
+                    const stage = order.granular_status;
+                    const assigneeId = order.stage_assignees?.[stage];
+                    const deptHead = departmentHeads.find(dh => dh.id === assigneeId);
+                    if (deptHead) {
+                      return deptHead.name + ' (' + deptHead.email + ')';
+                    }
+                    return 'Unassigned';
+                  })()}
                 </td>
                 <td className="p-3">
                   <input
@@ -312,7 +323,12 @@ export default function Fulfillment() {
         </table>
       </div>
       
-      <OrderDetailsModal order={selectedOrder} onClose={() => setSelectedOrder(null)} operationsUsers={operationsUsers} />
+      <OrderDetailsModal 
+        order={selectedOrder} 
+        onClose={() => setSelectedOrder(null)} 
+        operationsUsers={operationsUsers}
+        onOrderUpdate={fetchOrders}
+      />
 
       {/* Audit log modal */}
       {auditedOrderId && (

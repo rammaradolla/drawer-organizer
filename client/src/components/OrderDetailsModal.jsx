@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../utils/supabaseClient';
 
 const DetailRow = ({ label, value, className = '' }) => (
   <div className={`flex justify-between py-2 border-b ${className}`}>
@@ -79,14 +80,57 @@ const OPERATIONAL_STAGES = [
   "Delivered"
 ];
 
-export default function OrderDetailsModal({ order, onClose, operationsUsers = [] }) {
+export default function OrderDetailsModal({ order, onClose, operationsUsers = [], onOrderUpdate }) {
   const [activeTab, setActiveTab] = useState('details');
 
   // Helper to map user ID to name/email
   const getAssigneeName = (userId) => {
-    if (!userId) return '';
+    if (!userId) return 'Unassigned';
     const user = operationsUsers.find(u => u.id === userId);
-    return user ? (user.name || user.email || user.id) : userId;
+    return user ? (user.name || user.email || user.id) : 'Unassigned';
+  };
+
+  // Use stageAssignees from order, fallback to empty object
+  const stageAssignees = order?.stage_assignees || {};
+
+  // Update stage assignee
+  const updateStageAssignee = async (stage, assigneeId) => {
+    const newStageAssignees = {
+      ...stageAssignees,
+      [stage]: assigneeId || null
+    };
+    
+    // Remove null/empty values
+    if (!assigneeId) {
+      delete newStageAssignees[stage];
+    }
+    
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      const response = await fetch(`/api/fulfillment/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ stage_assignees: newStageAssignees }),
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to update stage assignee');
+        // Revert the change on error
+      } else {
+        // Call the callback to refresh parent data
+        if (onOrderUpdate) {
+          onOrderUpdate();
+        }
+      }
+    } catch (error) {
+      console.error('Error updating stage assignee:', error);
+      // Revert the change on error
+    }
   };
 
   if (!order) return null;
@@ -223,7 +267,7 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
                         <tr key={stage}>
                           <td className="p-2 border-b">{stage}</td>
                           <td className="p-2 border-b text-2xl">{idx <= currentStageIndex ? "☑" : "□"}</td>
-                          <td className="p-2 border-b">{getAssigneeName(order.assignee_id)}</td>
+                          <td className="p-2 border-b">{getAssigneeName(stageAssignees[stage])}</td>
                         </tr>
                       ));
                     })()}

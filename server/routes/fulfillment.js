@@ -12,6 +12,21 @@ console.log('Authenticating fulfillment routes', authenticateToken);
 router.use(authenticateToken);
 router.use(requireAnyRole(['operations', 'admin']));
 
+// Define operational stages for use in auto-population
+const OPERATIONAL_STAGES = [
+  "Payment Confirmed",
+  "Design Review",
+  "Material Sourcing",
+  "Cutting & Milling",
+  "Assembly",
+  "Sanding & Finishing",
+  "Final Quality Check",
+  "Packaging",
+  "Awaiting Carrier Pickup",
+  "Shipped",
+  "Delivered"
+];
+
 // Get all orders with optional filtering
 router.get('/orders', async (req, res) => {
   try {
@@ -86,6 +101,68 @@ router.get('/orders', async (req, res) => {
       .from('orders')
       .select('*', { count: 'exact', head: true });
 
+    if (orders && Array.isArray(orders)) {
+      // Fetch all department heads for mapping
+      const { data: allDeptHeads } = await supabase.from('department_heads').select('id, stage');
+      // Normalize function for robust matching
+      const normalize = s => s.trim().toLowerCase();
+      const deptHeadMap = {};
+      if (allDeptHeads) {
+        allDeptHeads.forEach(dh => { deptHeadMap[normalize(dh.stage)] = dh.id; });
+      }
+      orders.forEach(order => {
+        if (!order.stage_assignees) {
+          order.stage_assignees = {};
+        }
+        // Ensure every stage is mapped to a department head if present
+        OPERATIONAL_STAGES.forEach(stage => {
+          const normStage = normalize(stage);
+          if (!order.stage_assignees[stage] || order.stage_assignees[stage] === '') {
+            if (deptHeadMap[normStage]) {
+              order.stage_assignees[stage] = deptHeadMap[normStage];
+            } else {
+              console.warn(`No department head found for stage: '${stage}'`);
+            }
+          }
+        });
+      });
+      // Enrich stage_assignees with user info
+      // Collect all unique assignee IDs from all orders' stage_assignees
+      const allAssigneeIds = Array.from(new Set(
+        orders.flatMap(order => order.stage_assignees ? Object.values(order.stage_assignees) : [])
+      ));
+      if (allAssigneeIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, name, email')
+          .in('id', allAssigneeIds);
+        const userMap = {};
+        if (usersData) {
+          usersData.forEach(u => { userMap[u.id] = u; });
+        }
+        // Find missing IDs
+        const missingIds = allAssigneeIds.filter(id => !userMap[id]);
+        let deptHeadMap = {};
+        if (missingIds.length > 0) {
+          const { data: deptHeadsData } = await supabase
+            .from('department_heads')
+            .select('id, name, email, phone, stage')
+            .in('id', missingIds);
+          if (deptHeadsData) {
+            deptHeadsData.forEach(dh => { deptHeadMap[dh.id] = dh; });
+          }
+        }
+        orders.forEach(order => {
+          if (order.stage_assignees) {
+            order.stage_assignees_info = {};
+            Object.entries(order.stage_assignees).forEach(([stage, id]) => {
+              order.stage_assignees_info[stage] = userMap[id] || deptHeadMap[id] || null;
+            });
+          }
+        });
+      }
+    }
+
     res.json({
       success: true,
       orders,
@@ -138,6 +215,41 @@ router.get('/orders/:orderId', async (req, res) => {
       });
     }
 
+    if (order && order.assignee_id && (!order.stage_assignees || Object.keys(order.stage_assignees).length === 0)) {
+      order.stage_assignees = {};
+      OPERATIONAL_STAGES.forEach(stage => {
+        order.stage_assignees[stage] = order.assignee_id;
+      });
+    }
+
+    if (order && order.stage_assignees && Object.values(order.stage_assignees).length > 0) {
+      const assigneeIds = Array.from(new Set(Object.values(order.stage_assignees)));
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', assigneeIds);
+      const userMap = {};
+      if (usersData) {
+        usersData.forEach(u => { userMap[u.id] = u; });
+      }
+      // Find missing IDs
+      const missingIds = assigneeIds.filter(id => !userMap[id]);
+      let deptHeadMap = {};
+      if (missingIds.length > 0) {
+        const { data: deptHeadsData } = await supabase
+          .from('department_heads')
+          .select('id, name, email, phone, stage')
+          .in('id', missingIds);
+        if (deptHeadsData) {
+          deptHeadsData.forEach(dh => { deptHeadMap[dh.id] = dh; });
+        }
+      }
+      order.stage_assignees_info = {};
+      Object.entries(order.stage_assignees).forEach(([stage, id]) => {
+        order.stage_assignees_info[stage] = userMap[id] || deptHeadMap[id] || null;
+      });
+    }
+
     res.json({
       success: true,
       order
@@ -162,7 +274,8 @@ router.patch('/orders/:orderId', async (req, res) => {
       tracking_carrier, 
       notes, 
       blocker_reason,
-      assignee_id
+      assignee_id,
+      stage_assignees
     } = req.body;
 
     // Validate status
@@ -198,10 +311,42 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (notes !== undefined) updateData.notes = notes;
     if (blocker_reason !== undefined) updateData.blocker_reason = blocker_reason;
     if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
+    if (stage_assignees !== undefined) updateData.stage_assignees = stage_assignees;
 
     // Add audit trail metadata to the order itself
     updateData.last_updated_by = req.user.id;
     updateData.last_updated_at = new Date().toISOString();
+
+    // --- Begin Stage Assignment Logic ---
+    if (granular_status && granular_status !== oldOrder.granular_status) {
+      // Find the index of the new and previous stage
+      const newStageIdx = OPERATIONAL_STAGES.indexOf(granular_status);
+      const prevStageIdx = OPERATIONAL_STAGES.indexOf(oldOrder.granular_status);
+      const prevStage = OPERATIONAL_STAGES[prevStageIdx];
+      const nextStage = OPERATIONAL_STAGES[newStageIdx];
+
+      // Use the most up-to-date stage_assignees (from update or old order)
+      let currentStageAssignees = stage_assignees !== undefined ? stage_assignees : (oldOrder.stage_assignees || {});
+
+      // If moving to a new stage and next stage's assignee is not set, auto-assign it to department head
+      if (prevStageIdx >= 0 && newStageIdx > prevStageIdx) {
+        if (!currentStageAssignees[nextStage]) {
+          // Fetch department head for the next stage
+          const { data: deptHead, error: deptHeadError } = await supabase
+            .from('department_heads')
+            .select('id, name, email, phone, stage')
+            .eq('stage', nextStage)
+            .single();
+          if (deptHead && deptHead.id) {
+            currentStageAssignees[nextStage] = deptHead.id;
+          }
+        }
+      }
+
+      // Save the updated stage_assignees
+      updateData.stage_assignees = currentStageAssignees;
+    }
+    // --- End Stage Assignment Logic ---
 
     const { data: updatedOrder, error } = await supabase
       .from('orders')
@@ -261,6 +406,13 @@ router.patch('/orders/:orderId', async (req, res) => {
       auditLogPayload.notes = `Assignee changed by ${req.user.email}.`;
       auditLogPayload.old_values.assignee_id = oldOrder.assignee_id;
       auditLogPayload.new_values.assignee_id = assignee_id;
+    }
+
+    if (stage_assignees && JSON.stringify(stage_assignees) !== JSON.stringify(oldOrder.stage_assignees || {})) {
+      auditLogPayload.action = 'STAGE_ASSIGNEES_CHANGED';
+      auditLogPayload.notes = `Stage assignees updated by ${req.user.email}.`;
+      auditLogPayload.old_values.stage_assignees = oldOrder.stage_assignees || {};
+      auditLogPayload.new_values.stage_assignees = stage_assignees;
     }
 
     // If we have changes, insert an audit log.
@@ -482,6 +634,12 @@ router.get('/stats', async (req, res) => {
       error: error.message
     });
   }
+});
+
+router.get('/department-heads', authenticateToken, requireAnyRole(['admin', 'operations']), async (req, res) => {
+  const { data, error } = await supabase.from('department_heads').select('*');
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, department_heads: data });
 });
 
 module.exports = router; 

@@ -1,16 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireAnyRole } = require('../middleware/auth');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 // Protect all routes in this file, only admins can access
 router.use(authenticateToken);
-router.use(requireRole('admin'));
 
 // GET /api/admin/users - Fetches users, can filter by role
-router.get('/users', async (req, res) => {
+router.get('/users', requireRole('admin'), async (req, res) => {
   const { role } = req.query;
   try {
     let query = supabase.from('users').select('id, email, name, role');
@@ -27,7 +26,7 @@ router.get('/users', async (req, res) => {
 });
 
 // PUT /api/admin/users/role - Updates a user's role
-router.put('/users/role', async (req, res) => {
+router.put('/users/role', requireRole('admin'), async (req, res) => {
   const { email, role } = req.body;
 
   if (!email || !role) {
@@ -66,6 +65,38 @@ router.put('/users/role', async (req, res) => {
     console.error(`Error updating role for ${email}:`, error);
     res.status(500).json({ success: false, message: 'Failed to update user role', error: error.message });
   }
+});
+
+// List all department heads
+router.get('/department-heads', requireAnyRole(['admin', 'operations']), async (req, res) => {
+  const { data, error } = await supabase.from('department_heads').select('*');
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, department_heads: data });
+});
+
+// Add a department head
+router.post('/department-heads', requireRole('admin'), async (req, res) => {
+  const { stage, name, email, phone } = req.body;
+  const { data, error } = await supabase.from('department_heads').insert([{ stage, name, email, phone }]).select();
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, department_head: data[0] });
+});
+
+// Update a department head
+router.put('/department-heads/:id', requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { stage, name, email, phone } = req.body;
+  const { data, error } = await supabase.from('department_heads').update({ stage, name, email, phone, updated_at: new Date() }).eq('id', id).select();
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true, department_head: data[0] });
+});
+
+// Delete a department head
+router.delete('/department-heads/:id', requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase.from('department_heads').delete().eq('id', id);
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true });
 });
 
 module.exports = router; 
