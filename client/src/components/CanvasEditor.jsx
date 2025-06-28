@@ -61,6 +61,7 @@ const PIXELS_PER_INCH = 10; // Each inch is 10 pixels
 const GRID_SIZE = 0.25 * PIXELS_PER_INCH; // Grid size is 0.25 inches
 const PADDING = 40; // Padding around the canvas
 const MIN_SIZE = 0.5 * PIXELS_PER_INCH; // Minimum size is 0.5 inches
+const DIVIDER_THICKNESS_INCHES = 0.5;
 
 const DimensionArrow = ({ start, end, label, offset = 20 }) => {
   const isHorizontal = start.y === end.y;
@@ -708,7 +709,26 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                         {blocks.map((block) => {
                           const isAffected = affectedBlocks.find(b => b.id === block.id);
                           const isSelected = selectedId === block.id;
-                          
+                          // Calculate internal (usable) width and depth
+                          // Convert block position and size from pixels to inches
+                          const blockLeft = block.x / PIXELS_PER_INCH;
+                          const blockTop = block.y / PIXELS_PER_INCH;
+                          const blockRight = (block.x + block.width) / PIXELS_PER_INCH;
+                          const blockBottom = (block.y + block.height) / PIXELS_PER_INCH;
+                          const drawerRight = dimensions.width;
+                          const drawerBottom = dimensions.depth;
+                          // Subtract divider thickness if not at the edge
+                          let internalWidth = block.width / PIXELS_PER_INCH;
+                          let internalDepth = block.height / PIXELS_PER_INCH;
+                          // Check for vertical dividers (left/right)
+                          if (blockLeft > 0) internalWidth -= DIVIDER_THICKNESS_INCHES / 2;
+                          if (blockRight < drawerRight) internalWidth -= DIVIDER_THICKNESS_INCHES / 2;
+                          // Check for horizontal dividers (top/bottom)
+                          if (blockTop > 0) internalDepth -= DIVIDER_THICKNESS_INCHES / 2;
+                          if (blockBottom < drawerBottom) internalDepth -= DIVIDER_THICKNESS_INCHES / 2;
+                          // Prevent negative or zero values
+                          internalWidth = Math.max(0, internalWidth);
+                          internalDepth = Math.max(0, internalDepth);
                           return (
                             <Group key={block.id}>
                               <Rect
@@ -725,7 +745,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                               <Text
                                 x={block.x + block.width / 2}
                                 y={block.y + block.height / 2}
-                                text={`W: ${pixelsToInches(block.width)}"\nD: ${pixelsToInches(block.height)}"`}
+                                text={`W: ${internalWidth.toFixed(2)}\"\nD: ${internalDepth.toFixed(2)}\"`}
                                 fontSize={8}
                                 fill="#333"
                                 align="center"
