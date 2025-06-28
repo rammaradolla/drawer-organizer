@@ -9,11 +9,11 @@ import OrderDetailsModal from './OrderDetailsModal';
 // This is a simplified version of the backend constants.
 // In a real-world app, you might fetch this from the server or use a shared module.
 const STATUSES = {
-  pending: { operational_statuses: ["Awaiting Payment"] },
-  in_progress: { operational_statuses: ["Payment Confirmed", "Design Review", "Material Sourcing", "Cutting & Milling", "Assembly", "Sanding & Finishing", "Final Quality Check"] },
-  fulfilled: { operational_statuses: ["Packaging", "Awaiting Carrier Pickup", "Shipped", "Delivered"] },
-  on_hold: { operational_statuses: ["Blocked", "On Hold - Awaiting Customer Response", "On Hold - Supply Issue", "On Hold - Shop Backlog"] },
-  cancelled: { operational_statuses: ["Cancelled"] },
+  pending: { label: "Pending", operational_statuses: ["Awaiting Payment"] },
+  in_progress: { label: "In Progress", operational_statuses: ["Payment Confirmed", "Design Review", "Material Sourcing", "Cutting & Milling", "Assembly", "Sanding & Finishing", "Final Quality Check"] },
+  fulfilled: { label: "Fulfilled", operational_statuses: ["Packaging", "Awaiting Carrier Pickup", "Shipped", "Delivered"] },
+  on_hold: { label: "On Hold", operational_statuses: ["Blocked", "On Hold - Awaiting Customer Response", "On Hold - Supply Issue", "On Hold - Shop Backlog"] },
+  cancelled: { label: "Cancelled", operational_statuses: ["Cancelled"] },
 };
 
 const GRANULAR_STATUS_OPTIONS = [
@@ -133,10 +133,19 @@ export default function Fulfillment() {
           status,
           granular_status: operationalStatus,
           search: debouncedSearch,
-          assignee,
         },
       });
-      setOrders(data.orders || []);
+      console.log('Fetched orders:', data.orders);
+      let filteredOrders = data.orders || [];
+      if (assignee !== 'all') {
+        filteredOrders = filteredOrders.filter(order => {
+          const stage = order.granular_status;
+          const assigneeId = order.stage_assignees && order.stage_assignees[stage];
+          console.log('Filtering order', order.id, 'stage:', stage, 'assigneeId:', assigneeId, 'selected:', assignee);
+          return assigneeId === assignee;
+        });
+      }
+      setOrders(filteredOrders);
     } catch (error) {
       console.error('Failed to fetch orders:', error);
       setOrders([]); // Set to empty array on error to prevent crashes
@@ -220,18 +229,27 @@ export default function Fulfillment() {
             </option>
           ))}
         </select>
-        {user && user.role === 'admin' && (
-          <select
-            value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-            className="px-4 py-2 border rounded-lg bg-white"
-          >
-            <option value="all">All Assignees</option>
-            {departmentHeads.map(dh => (
-              <option key={dh.id} value={dh.id}>{dh.name} ({dh.email})</option>
-            ))}
-          </select>
-        )}
+        <select
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          className="px-4 py-2 border rounded-lg bg-white"
+        >
+          <option value="all">All Assignees</option>
+          {departmentHeads.map(dh => (
+            <option key={dh.id} value={dh.id}>{dh.name} ({dh.email})</option>
+          ))}
+        </select>
+        <button
+          className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-semibold ml-2"
+          onClick={() => {
+            setStatus('all');
+            setOperationalStatus('all');
+            setAssignee('all');
+            setSearch('');
+          }}
+        >
+          Clear All Filters
+        </button>
       </div>
       <div className="overflow-x-auto bg-white rounded shadow">
         <table className="min-w-full text-sm">

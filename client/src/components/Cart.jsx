@@ -6,6 +6,7 @@ import { clearCartInSupabase } from '../utils/supabaseDesigns';
 import CheckoutButton from './CheckoutButton';
 import CartItemForm from './CartItemForm';
 import { Link } from 'react-router-dom';
+import LoginButton from './LoginButton';
 
 export default function Cart() {
   const cart = useSelector(state => state.cart);
@@ -35,43 +36,51 @@ export default function Cart() {
   // Debug print for fulfillment view
   console.log("FULFILLMENT CHECK:", user && user.role);
 
-  if (!cart.length) {
-    return (
-      <div className="p-6 text-center text-slate-600 flex flex-col items-center justify-center h-full">
-        <img src="/images/how-to-measure.jpg" alt="How to Measure Inside Drawer Dimensions" className="w-full max-w-md mb-4 rounded shadow border bg-white" />
-        <div className="mb-3 text-base max-w-lg mx-auto text-blue-900 font-semibold">
-          Not sure what size you need? Use the guide above to measure your drawer's inner dimensions—width, depth, and height—for a perfect custom fit!
-        </div>
-        <div className="text-2xl font-bold mb-4 text-blue-700">🛠️ Custom Drawer Organizers, Made for You!</div>
-        <div className="flex flex-row gap-4 justify-center mb-4">
-          <div className="flex flex-col items-center">
-            <img src="/images/organizer1.jpg" alt="Hardwood Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
-            <span className="mt-2 text-sm font-medium">Hardwood Organizer</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <img src="/images/organizer2.jpg" alt="Birch Plywood Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
-            <span className="mt-2 text-sm font-medium">Birch Plywood Organizer</span>
-          </div>
-          <div className="flex flex-col items-center">
-            <img src="/images/organizer3.jpg" alt="Multi-Compartment Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
-            <span className="mt-2 text-sm font-medium">Multi-Compartment Organizer</span>
-          </div>
-        </div>
-        <div className="mb-3 text-base max-w-xs mx-auto">
-          Transform your drawers with premium, made-to-order organizers. Choose your wood, layout, and size—see it in 3D before you buy!
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-blue-800 text-sm font-medium shadow-sm mb-2">
-          <span>✨ Free shipping on all custom drawer organizers this month! ✨</span>
-        </div>
-        <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold shadow" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
-          Start Designing Now
-        </button>
-      </div>
-    );
-  }
+  // Show sign-in prompt at the top if not signed in
+  const showSignIn = !user && !loading;
+
+  const cartTotal = cart.reduce((sum, item) => (sum + (item.price || 0) * (quantities[item.id] || 1)), 0);
 
   return (
     <div className="p-4">
+      {showSignIn && (
+        <div className="flex flex-col items-center mt-4 mb-2">
+          <div className="text-xl font-semibold mb-2">Sign in to access your cart</div>
+          <LoginButton />
+        </div>
+      )}
+      {cart.length === 0 ? (
+        <div className="p-6 text-center text-slate-600 flex flex-col items-center h-full">
+          <img src="/images/how-to-measure.jpg" alt="How to Measure Inside Drawer Dimensions" className="w-full max-w-md mb-4 rounded shadow border bg-white" />
+          <div className="mb-3 text-base max-w-lg mx-auto text-blue-900 font-semibold">
+            Not sure what size you need? Use the guide above to measure your drawer's inner dimensions—width, depth, and height—for a perfect custom fit!
+          </div>
+          <div className="text-2xl font-bold mb-4 text-blue-700">🛠️ Custom Drawer Organizers, Made for You!</div>
+          <div className="flex flex-row gap-4 justify-center mb-4">
+            <div className="flex flex-col items-center">
+              <img src="/images/organizer1.jpg" alt="Hardwood Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
+              <span className="mt-2 text-sm font-medium">Hardwood Organizer</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/images/organizer2.jpg" alt="Birch Plywood Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
+              <span className="mt-2 text-sm font-medium">Birch Plywood Organizer</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <img src="/images/organizer3.jpg" alt="Multi-Compartment Organizer" className="w-28 h-24 object-cover rounded shadow border bg-white" />
+              <span className="mt-2 text-sm font-medium">Multi-Compartment Organizer</span>
+            </div>
+          </div>
+          <div className="mb-3 text-base max-w-xs mx-auto">
+            Transform your drawers with premium, made-to-order organizers. Choose your wood, layout, and size—see it in 3D before you buy!
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-blue-800 text-sm font-medium shadow-sm mb-2">
+            <span>✨ Free shipping on all custom drawer organizers this month! ✨</span>
+          </div>
+          <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold shadow" onClick={() => window.scrollTo({top: 0, behavior: 'smooth'})}>
+            Start Designing Now
+          </button>
+        </div>
+      ) : (
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Cart</h2>
         <button
@@ -86,6 +95,7 @@ export default function Cart() {
           Clear Cart
         </button>
       </div>
+      )}
       <div className="grid gap-6">
         {cart.map((item) => (
           <div key={item.id} className="border rounded-lg p-4 flex gap-4 items-start bg-white shadow-sm">
@@ -140,14 +150,17 @@ export default function Cart() {
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-between mt-6 gap-4">
-        <div className="text-xl font-bold text-slate-800">
-          Total: ${cart.reduce((sum, item) => (sum + (item.price || 0) * (quantities[item.id] || 1)), 0).toFixed(2)}
+      {/* Only show total and Place Order if cart has items and total > 0 */}
+      {(cart.length > 0 && cartTotal > 0) && (
+        <div className="flex items-center justify-between mt-6 gap-4">
+          <div className="text-xl font-bold text-slate-800">
+            Total: ${cartTotal.toFixed(2)}
+          </div>
+          <div>
+            <CheckoutButton cart={cart} quantities={quantities} user={user} />
+          </div>
         </div>
-        <div>
-          <CheckoutButton cart={cart} quantities={quantities} user={user} />
-        </div>
-      </div>
+      )}
       {user && user.role === 'operations' && (
         <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold">
           Fulfillment

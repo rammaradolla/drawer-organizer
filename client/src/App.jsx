@@ -274,21 +274,22 @@ function App() {
             {(!user || user.role === 'customer') && (
               <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
             )}
-            {/* Fulfillment link - primary for operations, secondary for admin */}
-            {user && (user.role === 'operations' || user.role === 'admin') && (
-              <Link to="/fulfillment" className={`px-4 py-2 font-semibold rounded ${
-                user.role === 'operations' 
-                  ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-              }`}>
-                {user.role === 'operations' ? 'Dashboard' : 'Fulfillment'}
+            {/* Fulfillment link - only for operations users */}
+            {user && user.role === 'operations' && (
+              <Link to="/fulfillment" className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 font-semibold rounded">
+                Dashboard
               </Link>
             )}
-            {/* Admin-only link */}
+            {/* Admin-only links: Admin Panel and Fulfillment */}
             {user && user.role === 'admin' && (
-              <Link to="/admin" className="px-4 py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">
-                Admin Panel
-              </Link>
+              <>
+                <Link to="/admin" className="px-4 py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">
+                  Admin Panel
+                </Link>
+                <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold ml-4">
+                  Fulfillment
+                </Link>
+              </>
             )}
             <div className="ml-6">
               {user ? (
@@ -322,17 +323,12 @@ function App() {
                       }}
                     />
                   </div>
-                  {/* Cart Sidebar - Protected */}
+                  {/* Cart Sidebar - Always show Cart, let Cart handle sign-in prompt */}
                   <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
                     {loading ? (
                       <div className="flex items-center justify-center h-full">Loading...</div>
-                    ) : user ? (
-                      <Cart />
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full gap-4">
-                        <div className="text-lg font-semibold text-gray-700">Sign in to access your cart</div>
-                        <LoginButton id="login-btn" />
-                      </div>
+                      <Cart />
                     )}
                   </div>
                 </>
