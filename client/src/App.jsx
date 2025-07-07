@@ -148,6 +148,20 @@ function App() {
     }
   }, [user, location.pathname, loading, navigate]);
 
+  // Redirect department head users to fulfillment dashboard
+  React.useEffect(() => {
+    if (user && user.role === 'department_head' && location.pathname === '/') {
+      navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
+  // Redirect department member users to fulfillment dashboard
+  React.useEffect(() => {
+    if (user && user.role === 'department_member' && location.pathname === '/') {
+      navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, navigate]);
+
   // Update page title based on user role and current page
   React.useEffect(() => {
     const getTitle = () => {

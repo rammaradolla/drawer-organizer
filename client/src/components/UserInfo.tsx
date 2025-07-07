@@ -20,7 +20,14 @@ const UserInfo: React.FC = () => {
       <div className="w-9 h-9 flex items-center justify-center rounded-full bg-blue-500 text-white font-bold text-lg">
         {initial}
       </div>
-      <span className="font-medium text-gray-800">{displayName}</span>
+      <div>
+        <span className="font-medium text-gray-800">{displayName}</span>
+        {user.role && user.role !== 'customer' && (
+          <div className="text-xs italic text-gray-500">
+            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+          </div>
+        )}
+      </div>
       <LogoutButton />
     </div>
   );

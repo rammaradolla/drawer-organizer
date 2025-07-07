@@ -42,6 +42,16 @@ const createCheckoutSession = async (userId, cartItems) => {
       },
     });
 
+    // Determine the initial stage
+    const initialStage = 'Awaiting Payment';
+    // Find department head for the initial stage
+    const { data: deptHead } = await supabase
+      .from('department_heads')
+      .select('id')
+      .eq('stage', initialStage)
+      .single();
+    const assigneeId = deptHead ? deptHead.id : null;
+
     // Create order record in Supabase
     const { data: order, error } = await supabase
       .from('orders')
@@ -51,6 +61,8 @@ const createCheckoutSession = async (userId, cartItems) => {
         total_price: totalPrice,
         status: 'pending',
         stripe_checkout_id: session.id,
+        assignee_id: assigneeId,
+        granular_status: initialStage,
       })
       .select()
       .single();

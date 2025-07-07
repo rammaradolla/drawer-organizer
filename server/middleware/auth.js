@@ -87,8 +87,32 @@ const requireAnyRole = (requiredRoles) => {
   };
 };
 
+// Middleware to check if user is a department head
+const requireDepartmentHead = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  }
+  if (req.user.role !== 'department_head') {
+    return res.status(403).json({ success: false, message: 'Access denied. department_head role required.' });
+  }
+  next();
+};
+
+// Middleware to check if user is a department member
+const requireDepartmentMember = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: 'Authentication required' });
+  }
+  if (req.user.role !== 'department_member') {
+    return res.status(403).json({ success: false, message: 'Access denied. department_member role required.' });
+  }
+  next();
+};
+
 module.exports = {
   authenticateToken,
   requireRole,
-  requireAnyRole
+  requireAnyRole,
+  requireDepartmentHead,
+  requireDepartmentMember
 }; 

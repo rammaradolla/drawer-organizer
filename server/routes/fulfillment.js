@@ -10,7 +10,7 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 // Apply authentication and role check to all fulfillment routes
 console.log('Authenticating fulfillment routes', authenticateToken);
 router.use(authenticateToken);
-router.use(requireAnyRole(['operations', 'admin']));
+router.use(requireAnyRole(['operations', 'admin', 'department_head', 'department_member']));
 
 // Define operational stages for use in auto-population
 const OPERATIONAL_STAGES = [
@@ -48,9 +48,23 @@ router.get('/orders', async (req, res) => {
       .from('orders')
       .select(`
         *,
-        assignee_data:profiles(name)
+        users!orders_user_id_fkey (
+          id,
+          email,
+          name
+        ),
+        assignee:users!orders_assignee_id_fkey (
+          id,
+          email,
+          name
+        )
       `)
       .order('created_at', { ascending: false });
+
+    // Role-based filtering
+    if (req.user.role === 'department_head' || req.user.role === 'department_member') {
+      query = query.eq('assignee_id', req.user.id);
+    }
 
     if (status && status !== 'all') {
       query = query.eq('status', status);
@@ -70,21 +84,6 @@ router.get('/orders', async (req, res) => {
         config: 'english'
       });
     }
-
-    // Always select the data and the related user info
-    query = query.select(`
-      *,
-      users!orders_user_id_fkey (
-        id,
-        email,
-        name
-      ),
-      assignee:users!orders_assignee_id_fkey (
-        id,
-        email,
-        name
-      )
-    `);
 
     // Apply sorting
     query = query.order(sortBy, { ascending: sortOrder === 'asc' });
@@ -308,6 +307,28 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (granular_status) {
       updateData.granular_status = granular_status;
       updateData.status = getCustomerFacingStatus(granular_status);
+      // Find department head for the new stage (robust match)
+      const normalize = s => s && s.trim().toLowerCase();
+      const { data: deptHead, error: deptHeadError } = await supabase
+        .from('department_heads')
+        .select('id, stage')
+        .single();
+      let foundDeptHead = deptHead;
+      if (!deptHead || normalize(deptHead.stage) !== normalize(granular_status)) {
+        // Try to find by normalized match if single() fails
+        const { data: allHeads } = await supabase
+          .from('department_heads')
+          .select('id, stage');
+        foundDeptHead = (allHeads || []).find(h => normalize(h.stage) === normalize(granular_status));
+      }
+      if (foundDeptHead && foundDeptHead.id) {
+        updateData.assignee_id = foundDeptHead.id;
+      } else {
+        updateData.assignee_id = null;
+        console.warn('No department head found for stage:', granular_status);
+      }
+      updateData.task_status = 'in-progress'; // Reset task status for new stage
+      updateData.assigned_at = new Date().toISOString();
     }
     if (tracking_number) updateData.tracking_number = tracking_number;
     if (tracking_carrier) updateData.tracking_carrier = tracking_carrier;
@@ -639,10 +660,174 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-router.get('/department-heads', authenticateToken, requireAnyRole(['admin', 'operations']), async (req, res) => {
+router.get('/department-heads', authenticateToken, requireAnyRole(['admin', 'operations', 'department_head', 'department_member']), async (req, res) => {
   const { data, error } = await supabase.from('department_heads').select('*');
   if (error) return res.status(500).json({ success: false, error: error.message });
   res.json({ success: true, department_heads: data });
+});
+
+// PATCH /orders/:orderId/task-status
+router.patch('/orders/:orderId/task-status', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { task_status } = req.body;
+    const allowedStatuses = ['in-progress', 'complete', 'blocked'];
+    if (!allowedStatuses.includes(task_status)) {
+      return res.status(400).json({ success: false, message: `Invalid task_status. Must be one of: ${allowedStatuses.join(', ')}` });
+    }
+
+    // Fetch the order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Only assigned department head or member can update
+    if (
+      req.user.id !== order.current_department_head_id &&
+      req.user.id !== order.current_department_member_id
+    ) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only assigned department head or member can update task status.' });
+    }
+
+    // Prepare update object
+    const updateData = { task_status, last_updated_by: req.user.id, last_updated_at: new Date().toISOString() };
+    let nextStageAssigned = false;
+    let auditNote = `Task status updated to ${task_status} by ${req.user.email}`;
+
+    // If status is 'complete', move to next stage and assign to next department head
+    if (task_status === 'complete') {
+      const OPERATIONAL_STAGES = [
+        "Awaiting Payment",
+        "Payment Confirmed",
+        "Design Review",
+        "Material Sourcing",
+        "Cutting & Milling",
+        "Assembly",
+        "Sanding & Finishing",
+        "Final Quality Check",
+        "Packaging",
+        "Awaiting Carrier Pickup",
+        "Shipped",
+        "Delivered",
+        "Blocked",
+        "Cancelled"
+      ];
+      const currentStageIdx = OPERATIONAL_STAGES.indexOf(order.granular_status);
+      if (currentStageIdx >= 0 && currentStageIdx < OPERATIONAL_STAGES.length - 1) {
+        const nextStage = OPERATIONAL_STAGES[currentStageIdx + 1];
+        // Find department head for next stage
+        const { data: deptHead, error: deptHeadError } = await supabase
+          .from('department_heads')
+          .select('id')
+          .eq('stage', nextStage)
+          .single();
+        if (deptHead && deptHead.id) {
+          updateData.current_department_head_id = deptHead.id;
+          updateData.current_department_member_id = null;
+          updateData.granular_status = nextStage;
+          updateData.status = require('../utils/statusConstants').getCustomerFacingStatus(nextStage);
+          updateData.assigned_at = new Date().toISOString();
+          nextStageAssigned = true;
+          auditNote += `. Order moved to next stage: ${nextStage}`;
+        }
+      }
+    }
+
+    // Update the order
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select('*')
+      .single();
+    if (updateError) throw updateError;
+
+    // Log the change in audit log
+    await supabase.from('order_audit_log').insert([
+      {
+        order_id: orderId,
+        action: 'TASK_STATUS_UPDATED',
+        old_values: { task_status: order.task_status },
+        new_values: { task_status },
+        updated_by: req.user.id,
+        notes: auditNote,
+        created_at: new Date().toISOString()
+      }
+    ]);
+
+    res.json({ success: true, order: updatedOrder, nextStageAssigned });
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    res.status(500).json({ success: false, message: 'Failed to update task status', error: error.message });
+  }
+});
+
+// Get department members for a given stage
+router.get('/department-members', authenticateToken, requireAnyRole(['admin', 'operations', 'department_head']), async (req, res) => {
+  const { stage } = req.query;
+  if (!stage) return res.status(400).json({ success: false, message: 'Stage is required' });
+
+  // Find members for this stage
+  const { data: members, error: membersError } = await supabase
+    .from('department_members')
+    .select('id, name, email, stage')
+    .eq('stage', stage);
+
+  if (membersError) return res.status(500).json({ success: false, message: membersError.message });
+
+  // Filter by role in the users table
+  const memberIds = members.map(m => m.id);
+  let filteredMembers = [];
+  if (memberIds.length > 0) {
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, role')
+      .in('id', memberIds)
+      .eq('role', 'department_member');
+    if (usersError) return res.status(500).json({ success: false, message: usersError.message });
+    const validUserIds = new Set((users || []).map(u => u.id));
+    filteredMembers = members.filter(m => validUserIds.has(m.id));
+  }
+
+  res.json({ success: true, members: filteredMembers });
+});
+
+// Assign a department member to an order
+router.patch('/orders/:orderId/assign-member', authenticateToken, requireAnyRole(['admin', 'operations', 'department_head']), async (req, res) => {
+  const { orderId } = req.params;
+  const { memberId } = req.body;
+  if (!memberId) return res.status(400).json({ success: false, message: 'memberId is required' });
+
+  // Fetch the order
+  const { data: order, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
+  if (error || !order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+  // Only the department head for this order can assign
+  if (req.user.role !== 'admin' && req.user.role !== 'operations' && req.user.id !== order.current_department_head_id) {
+    return res.status(403).json({ success: false, message: 'Only the department head for this order can assign a member.' });
+  }
+
+  // Assign the member
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({
+      current_department_member_id: memberId,
+      assigned_at: new Date().toISOString(),
+      task_status: 'in-progress'
+    })
+    .eq('id', orderId);
+  if (updateError) return res.status(500).json({ success: false, message: updateError.message });
+
+  res.json({ success: true, message: 'Member assigned.' });
 });
 
 module.exports = router; 

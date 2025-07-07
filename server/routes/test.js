@@ -207,4 +207,17 @@ router.get('/audit-log-verification', async (req, res) => {
   }
 });
 
+// TEMP: List all department heads and their stages
+router.get('/department-heads-list', async (req, res) => {
+  try {
+    const { data, error } = await require('../utils/db').supabase
+      .from('department_heads')
+      .select('stage, id');
+    if (error) throw error;
+    res.json({ success: true, department_heads: data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 module.exports = router; 

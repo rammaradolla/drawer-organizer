@@ -66,6 +66,49 @@ const STATUS_COLORS = {
   "Cancelled": "bg-gray-100 text-gray-800",
 };
 
+function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, updateOrder }) {
+  const [options, setOptions] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    async function loadOptions() {
+      setLoading(true);
+      const stage = order.granular_status;
+      // Find department head for this stage
+      const deptHead = departmentHeads.find(dh => dh.stage === stage);
+      let members = await fetchDepartmentMembers(stage);
+      // Option format: { id, name, email, role }
+      let opts = [];
+      if (deptHead) {
+        opts.push({ id: deptHead.id, name: deptHead.name, email: deptHead.email, role: 'department_head' });
+      }
+      if (members && members.length > 0) {
+        opts = opts.concat(members.map(m => ({ id: m.id, name: m.name, email: m.email, role: 'department_member' })));
+      }
+      setOptions(opts);
+      setLoading(false);
+    }
+    loadOptions();
+    // eslint-disable-next-line
+  }, [order.granular_status, departmentHeads]);
+
+  return (
+    <select
+      className="rounded px-2 py-1 border"
+      value={order.assignee?.id || ''}
+      onChange={e => updateOrder(order.id, { assignee_id: e.target.value })}
+      disabled={loading}
+    >
+      <option value="">Unassigned</option>
+      {options.map(opt => (
+        <option key={opt.id} value={opt.id}>
+          {opt.name} ({opt.email}){opt.role === 'department_head' ? ' [Head]' : ''}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export default function Fulfillment() {
   const { user } = useUser();
   const [orders, setOrders] = useState([]);
@@ -80,6 +123,7 @@ export default function Fulfillment() {
   const [auditLog, setAuditLog] = useState([]);
   const [operationsUsers, setOperationsUsers] = useState([]);
   const [departmentHeads, setDepartmentHeads] = useState([]);
+  const [departmentMembers, setDepartmentMembers] = useState({});
 
   const operationalStatusOptions = useMemo(() => {
     if (status === 'all') {
@@ -191,6 +235,22 @@ export default function Fulfillment() {
     setAuditLog(data.auditLog || []);
   }
 
+  async function fetchDepartmentMembers(stage) {
+    if (!stage) return [];
+    if (departmentMembers[stage]) return departmentMembers[stage];
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    const res = await fetch(`/api/fulfillment/department-members?stage=${encodeURIComponent(stage)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const data = await res.json();
+    if (data.members) {
+      setDepartmentMembers(prev => ({ ...prev, [stage]: data.members }));
+      return data.members;
+    }
+    return [];
+  }
+
   return (
     <div className="bg-white p-8 rounded-lg shadow-md w-full">
       <h2 className="text-2xl font-bold text-gray-800 mb-6">Fulfillment Dashboard</h2>
@@ -260,6 +320,7 @@ export default function Fulfillment() {
               <th className="p-3 text-left">Status (Customer)</th>
               <th className="p-3 text-left">Status (Operational)</th>
               <th className="p-3 text-left">Assignee</th>
+              <th className="p-3 text-left">Task Status</th>
               <th className="p-3 text-left">Tracking</th>
               <th className="p-3 text-left">Total</th>
               <th className="p-3 text-left">Created</th>
@@ -268,75 +329,122 @@ export default function Fulfillment() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center p-6">Loading...</td></tr>
+              <tr><td colSpan={10} className="text-center p-6">Loading...</td></tr>
             ) : orders.length === 0 ? (
-              <tr><td colSpan={9} className="text-center p-6">No orders found.</td></tr>
-            ) : orders.map(order => (
-              <tr key={order.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
-                <td className="p-3">
-                  <div className="font-medium">{order.users?.name || 'N/A'}</div>
-                  <div className="text-xs text-gray-500">{order.users?.email}</div>
-                </td>
-                <td className="p-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    {
-                      pending: 'bg-yellow-200 text-yellow-900',
-                      in_progress: 'bg-blue-200 text-blue-900',
-                      fulfilled: 'bg-green-200 text-green-900',
-                      on_hold: 'bg-red-200 text-red-900',
-                      cancelled: 'bg-gray-200 text-gray-900'
-                    }[order.status]
-                  }`}>
-                    {order.status.replace('_', ' ')}
-                  </span>
-                </td>
-                <td className="p-3">
-                  <select
-                    className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'}`}
-                    value={order.granular_status}
-                    onChange={e => updateOrder(order.id, { granular_status: e.target.value })}
-                  >
-                    {GRANULAR_STATUS_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="p-3">
-                  {/* Always show department head for the current stage, for all users */}
-                  {(() => {
-                    const stage = order.granular_status;
-                    const assigneeId = order.stage_assignees?.[stage];
-                    const deptHead = departmentHeads.find(dh => dh.id === assigneeId);
-                    if (deptHead) {
-                      return deptHead.name + ' (' + deptHead.email + ')';
-                    }
-                    return 'Unassigned';
-                  })()}
-                </td>
-                <td className="p-3">
-                  <input
-                    className="input w-32"
-                    value={order.tracking_number || ''}
-                    placeholder="Tracking #"
-                    onChange={e => updateOrder(order.id, { tracking_number: e.target.value })}
-                  />
-                  <div className="text-xs text-gray-500">{order.tracking_carrier}</div>
-                </td>
-                <td className="p-3">${order.total_price?.toFixed(2)}</td>
-                <td className="p-3">{new Date(order.created_at).toLocaleString()}</td>
-                <td className="p-3 flex gap-2">
-                  <button
-                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                    onClick={() => setSelectedOrder(order)}
-                  >View</button>
-                  <button
-                    className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                    onClick={() => openAuditLog(order.id)}
-                  >Audit</button>
-                </td>
-              </tr>
-            ))}
+              <tr><td colSpan={10} className="text-center p-6">No orders found.</td></tr>
+            ) : orders.map(order => {
+              const isAssignedHead = user?.role === 'department_head' && order.current_department_head_id === user.id;
+              const isAssignedMember = user?.role === 'department_member' && order.current_department_member_id === user.id;
+              return (
+                <tr key={order.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
+                  <td className="p-3">
+                    <div className="font-medium">{order.users?.name || 'N/A'}</div>
+                    <div className="text-xs text-gray-500">{order.users?.email}</div>
+                  </td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      {
+                        pending: 'bg-yellow-200 text-yellow-900',
+                        in_progress: 'bg-blue-200 text-blue-900',
+                        fulfilled: 'bg-green-200 text-green-900',
+                        on_hold: 'bg-red-200 text-red-900',
+                        cancelled: 'bg-gray-200 text-gray-900'
+                      }[order.status]
+                    }`}>
+                      {order.status.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <select
+                      className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'}`}
+                      value={order.granular_status}
+                      onChange={e => updateOrder(order.id, { granular_status: e.target.value })}
+                    >
+                      {GRANULAR_STATUS_OPTIONS.map(opt => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="p-3">
+                    {/* Assignee Dropdown for admin, operations, and department head; read-only for others */}
+                    {['admin', 'operations', 'department_head'].includes(user?.role) ? (
+                      <AssigneeDropdown
+                        order={order}
+                        departmentHeads={departmentHeads}
+                        fetchDepartmentMembers={fetchDepartmentMembers}
+                        updateOrder={updateOrder}
+                      />
+                    ) : (
+                      <span>
+                        {order.assignee ? `${order.assignee.name} (${order.assignee.email})` : 'Unassigned'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {/* Task Status Dropdown or Text */}
+                    {(isAssignedHead || isAssignedMember) ? (
+                      <select
+                        className="rounded px-2 py-1 border"
+                        value={order.task_status || 'in-progress'}
+                        onChange={e => {
+                          // PATCH /orders/:orderId/task-status
+                          const newStatus = e.target.value;
+                          const updateTaskStatus = async () => {
+                            const { data: sessionData } = await supabase.auth.getSession();
+                            const accessToken = sessionData?.session?.access_token;
+                            const res = await fetch(`/api/fulfillment/orders/${order.id}/task-status`, {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${accessToken}`,
+                              },
+                              body: JSON.stringify({ task_status: newStatus }),
+                            });
+                            if (res.ok) {
+                              fetchOrders();
+                            } else {
+                              const data = await res.json().catch(() => ({}));
+                              alert('Failed to update task status: ' + (data.message || 'Unknown server error'));
+                            }
+                          };
+                          updateTaskStatus();
+                        }}
+                      >
+                        <option value="in-progress">In Progress</option>
+                        <option value="complete">Complete</option>
+                        <option value="blocked">Blocked</option>
+                      </select>
+                    ) : (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100">
+                        {order.task_status || 'in-progress'}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <input
+                      className="input w-32"
+                      value={order.tracking_number || ''}
+                      placeholder="Tracking #"
+                      onChange={e => updateOrder(order.id, { tracking_number: e.target.value })}
+                    />
+                    <div className="text-xs text-gray-500">{order.tracking_carrier}</div>
+                  </td>
+                  <td className="p-3">${order.total_price?.toFixed(2)}</td>
+                  <td className="p-3">{new Date(order.created_at).toLocaleString()}</td>
+                  <td className="p-3 flex gap-2">
+                    <button
+                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      onClick={() => setSelectedOrder(order)}
+                    >View</button>
+                    <button
+                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      onClick={() => openAuditLog(order.id)}
+                    >Audit</button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
