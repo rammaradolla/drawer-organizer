@@ -74,10 +74,8 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
     async function loadOptions() {
       setLoading(true);
       const stage = order.granular_status;
-      // Find department head for this stage
       const deptHead = departmentHeads.find(dh => dh.stage === stage);
       let members = await fetchDepartmentMembers(stage);
-      // Option format: { id, name, email, role }
       let opts = [];
       if (deptHead) {
         opts.push({ id: deptHead.id, name: deptHead.name, email: deptHead.email, role: 'department_head' });
@@ -85,8 +83,23 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       if (members && members.length > 0) {
         opts = opts.concat(members.map(m => ({ id: m.id, name: m.name, email: m.email, role: 'department_member' })));
       }
+      // Always include the current assignee in the dropdown, even if not in departmentHeads or members
+      if (
+        order.assignee &&
+        !opts.some(opt => opt.id === order.assignee.id)
+      ) {
+        opts.push({
+          id: order.assignee.id,
+          name: order.assignee.name,
+          email: order.assignee.email,
+          role: 'other'
+        });
+      }
       setOptions(opts);
       setLoading(false);
+      if (!order.assignee && deptHead) {
+        updateOrder(order.id, { assignee_id: deptHead.id });
+      }
     }
     loadOptions();
     // eslint-disable-next-line

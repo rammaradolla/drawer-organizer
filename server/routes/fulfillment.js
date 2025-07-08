@@ -46,19 +46,7 @@ router.get('/orders', async (req, res) => {
 
     let query = supabase
       .from('orders')
-      .select(`
-        *,
-        users!orders_user_id_fkey (
-          id,
-          email,
-          name
-        ),
-        assignee:users!orders_assignee_id_fkey (
-          id,
-          email,
-          name
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     // Role-based filtering
@@ -104,65 +92,53 @@ router.get('/orders', async (req, res) => {
       .select('*', { count: 'exact', head: true });
 
     if (orders && Array.isArray(orders)) {
-      // Fetch all department heads for mapping
-      const { data: allDeptHeads } = await supabase.from('department_heads').select('id, stage');
-      // Normalize function for robust matching
-      const normalize = s => s.trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
-      const deptHeadMap = {};
-      if (allDeptHeads) {
-        allDeptHeads.forEach(dh => { deptHeadMap[normalize(dh.stage)] = dh.id; });
-      }
-      orders.forEach(order => {
-        if (!order.stage_assignees) {
-          order.stage_assignees = {};
-        }
-        // Ensure every stage is mapped to a department head if present
-        OPERATIONAL_STAGES.forEach(stage => {
-          const normStage = normalize(stage);
-          if (!order.stage_assignees[stage] || order.stage_assignees[stage] === '') {
-            if (deptHeadMap[normStage]) {
-              order.stage_assignees[stage] = deptHeadMap[normStage];
-            } else {
-              console.warn(`No department head found for stage: '${stage}'`);
-            }
-          }
-        });
-      });
-      // Enrich stage_assignees with user info
-      // Collect all unique assignee IDs from all orders' stage_assignees
-      const allAssigneeIds = Array.from(new Set(
-        orders.flatMap(order => order.stage_assignees ? Object.values(order.stage_assignees) : [])
-      ));
-      if (allAssigneeIds.length > 0) {
-        const { data: usersData, error: usersError } = await supabase
+      // Collect all unique user IDs and assignee IDs
+      const allUserIds = Array.from(new Set([
+        ...orders.map(order => order.user_id).filter(Boolean),
+        ...orders.map(order => order.assignee_id).filter(Boolean)
+      ]));
+
+      let userMap = {};
+      let deptHeadMap = {};
+
+      if (allUserIds.length > 0) {
+        // Fetch from users
+        const { data: usersData } = await supabase
           .from('users')
           .select('id, name, email')
-          .in('id', allAssigneeIds);
-        const userMap = {};
+          .in('id', allUserIds);
         if (usersData) {
           usersData.forEach(u => { userMap[u.id] = u; });
         }
-        // Find missing IDs
-        const missingIds = allAssigneeIds.filter(id => !userMap[id]);
-        let deptHeadMap = {};
+
+        // Fetch from department_heads for any missing
+        const missingIds = allUserIds.filter(id => !userMap[id]);
         if (missingIds.length > 0) {
           const { data: deptHeadsData } = await supabase
             .from('department_heads')
-            .select('id, name, email, phone, stage')
+            .select('id, name, email')
             .in('id', missingIds);
           if (deptHeadsData) {
             deptHeadsData.forEach(dh => { deptHeadMap[dh.id] = dh; });
           }
         }
-        orders.forEach(order => {
-          if (order.stage_assignees) {
-            order.stage_assignees_info = {};
-            Object.entries(order.stage_assignees).forEach(([stage, id]) => {
-              order.stage_assignees_info[stage] = userMap[id] || deptHeadMap[id] || null;
-            });
-          }
-        });
       }
+
+      orders.forEach(order => {
+        // Attach assignee user object for direct assignee_id
+        if (order.assignee_id) {
+          order.assignee = userMap[order.assignee_id] || deptHeadMap[order.assignee_id] || null;
+        } else {
+          order.assignee = null;
+        }
+        // Attach customer user object
+        if (order.user_id) {
+          order.users = userMap[order.user_id] || null;
+        } else {
+          order.users = null;
+        }
+        console.log('Order assignee:', order.assignee, order);
+      });
     }
 
     res.json({
@@ -307,22 +283,15 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (granular_status) {
       updateData.granular_status = granular_status;
       updateData.status = getCustomerFacingStatus(granular_status);
-      // Find department head for the new stage (robust match)
-      const normalize = s => s && s.trim().toLowerCase();
-      const { data: deptHead, error: deptHeadError } = await supabase
-        .from('department_heads')
-        .select('id, stage')
+      // Find department head for the new stage using the new department_head_stages join table
+      const { data: stageAssignment } = await supabase
+        .from('department_head_stages')
+        .select('department_head_id')
+        .eq('stage', granular_status)
         .single();
-      let foundDeptHead = deptHead;
-      if (!deptHead || normalize(deptHead.stage) !== normalize(granular_status)) {
-        // Try to find by normalized match if single() fails
-        const { data: allHeads } = await supabase
-          .from('department_heads')
-          .select('id, stage');
-        foundDeptHead = (allHeads || []).find(h => normalize(h.stage) === normalize(granular_status));
-      }
-      if (foundDeptHead && foundDeptHead.id) {
-        updateData.assignee_id = foundDeptHead.id;
+      
+      if (stageAssignment && stageAssignment.department_head_id) {
+        updateData.assignee_id = stageAssignment.department_head_id;
       } else {
         updateData.assignee_id = null;
         console.warn('No department head found for stage:', granular_status);
@@ -355,14 +324,14 @@ router.patch('/orders/:orderId', async (req, res) => {
       // If moving to a new stage and next stage's assignee is not set, auto-assign it to department head
       if (prevStageIdx >= 0 && newStageIdx > prevStageIdx) {
         if (!currentStageAssignees[nextStage]) {
-          // Fetch department head for the next stage
-          const { data: deptHead, error: deptHeadError } = await supabase
-            .from('department_heads')
-            .select('id, name, email, phone, stage')
+          // Fetch department head for the next stage using the new department_head_stages join table
+          const { data: stageAssignment } = await supabase
+            .from('department_head_stages')
+            .select('department_head_id')
             .eq('stage', nextStage)
             .single();
-          if (deptHead && deptHead.id) {
-            currentStageAssignees[nextStage] = deptHead.id;
+          if (stageAssignment && stageAssignment.department_head_id) {
+            currentStageAssignees[nextStage] = stageAssignment.department_head_id;
           }
         }
       }
@@ -720,14 +689,14 @@ router.patch('/orders/:orderId/task-status', async (req, res) => {
       const currentStageIdx = OPERATIONAL_STAGES.indexOf(order.granular_status);
       if (currentStageIdx >= 0 && currentStageIdx < OPERATIONAL_STAGES.length - 1) {
         const nextStage = OPERATIONAL_STAGES[currentStageIdx + 1];
-        // Find department head for next stage
-        const { data: deptHead, error: deptHeadError } = await supabase
-          .from('department_heads')
-          .select('id')
+        // Find department head for next stage using the new department_head_stages join table
+        const { data: stageAssignment } = await supabase
+          .from('department_head_stages')
+          .select('department_head_id')
           .eq('stage', nextStage)
           .single();
-        if (deptHead && deptHead.id) {
-          updateData.current_department_head_id = deptHead.id;
+        if (stageAssignment && stageAssignment.department_head_id) {
+          updateData.current_department_head_id = stageAssignment.department_head_id;
           updateData.current_department_member_id = null;
           updateData.granular_status = nextStage;
           updateData.status = require('../utils/statusConstants').getCustomerFacingStatus(nextStage);

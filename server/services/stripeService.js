@@ -44,13 +44,15 @@ const createCheckoutSession = async (userId, cartItems) => {
 
     // Determine the initial stage
     const initialStage = 'Awaiting Payment';
-    // Find department head for the initial stage
-    const { data: deptHead } = await supabase
-      .from('department_heads')
-      .select('id')
+    
+    // Find department head for the initial stage using the new department_head_stages join table
+    const { data: stageAssignment } = await supabase
+      .from('department_head_stages')
+      .select('department_head_id')
       .eq('stage', initialStage)
       .single();
-    const assigneeId = deptHead ? deptHead.id : null;
+    
+    const assigneeId = stageAssignment ? stageAssignment.department_head_id : null;
 
     // Create order record in Supabase
     const { data: order, error } = await supabase
@@ -122,10 +124,21 @@ const handleWebhook = async (event) => {
         
         console.log(`[Stripe Webhook] Found order ${order.id}. Current status: ${order.status}`);
 
+        // Find department head for the new stage using the new department_head_stages join table
+        const newStage = 'Payment Confirmed';
+        const { data: stageAssignment } = await supabase
+          .from('department_head_stages')
+          .select('department_head_id')
+          .eq('stage', newStage)
+          .single();
+        
+        const newAssigneeId = stageAssignment ? stageAssignment.department_head_id : null;
+
         // Update order status in Supabase
         const updates = {
           status: 'in_progress',
-          granular_status: 'Payment Confirmed',
+          granular_status: newStage,
+          assignee_id: newAssigneeId, // Auto-assign to department head for new stage
         };
         
         const { data: updatedOrder, error: updateError } = await supabase
