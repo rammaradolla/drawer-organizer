@@ -77,33 +77,33 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       const deptHead = departmentHeads.find(dh => dh.stage === stage);
       let members = await fetchDepartmentMembers(stage);
       let opts = [];
+      // Only include department head for the stage
       if (deptHead) {
-        opts.push({ id: deptHead.id, name: deptHead.name, email: deptHead.email, role: 'department_head' });
+        opts.push({ id: deptHead.department_head_id || deptHead.id, name: deptHead.name || '[No Name]', email: deptHead.email || '[No Email]', role: 'department_head' });
       }
+      // Add department members for the stage
       if (members && members.length > 0) {
         opts = opts.concat(members.map(m => ({ id: m.id, name: m.name, email: m.email, role: 'department_member' })));
       }
-      // Always include the current assignee in the dropdown, even if not in departmentHeads or members
-      if (
-        order.assignee &&
-        !opts.some(opt => opt.id === order.assignee.id)
-      ) {
-        opts.push({
-          id: order.assignee.id,
-          name: order.assignee.name,
-          email: order.assignee.email,
-          role: 'other'
-        });
-      }
-      setOptions(opts);
+      // Deduplicate by id
+      const uniqueOpts = Array.from(new Map(opts.map(o => [o.id, o])).values());
+      setOptions(uniqueOpts);
       setLoading(false);
-      if (!order.assignee && deptHead) {
-        updateOrder(order.id, { assignee_id: deptHead.id });
+      // If the current assignee is not valid, auto-select department head
+      const validIds = uniqueOpts.map(o => o.id);
+      if (order.assignee && !validIds.includes(order.assignee.id) && deptHead) {
+        updateOrder(order.id, { assignee_id: deptHead.department_head_id || deptHead.id });
       }
     }
     loadOptions();
     // eslint-disable-next-line
   }, [order.granular_status, departmentHeads]);
+
+  // Find the selected option for display
+  const selectedOption = options.find(opt => opt.id === order.assignee?.id);
+  const selectedLabel = selectedOption
+    ? `${selectedOption.name} (${selectedOption.email})`
+    : 'Unassigned';
 
   return (
     <select

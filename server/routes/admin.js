@@ -260,7 +260,7 @@ router.patch('/orders/:orderId/assign-member', async (req, res) => {
 });
 
 // Get all stages for a department head
-router.get('/department-heads/:id/stages', async (req, res) => {
+router.get('/department-heads/:id/stages', authenticateToken, async (req, res) => {
   const { id } = req.params;
   try {
     const { data, error } = await db.supabase
@@ -275,7 +275,7 @@ router.get('/department-heads/:id/stages', async (req, res) => {
 });
 
 // Assign a stage to a department head
-router.post('/department-heads/:id/stages', async (req, res) => {
+router.post('/department-heads/:id/stages', authenticateToken, async (req, res) => {
   const { id } = req.params;
   const { stage } = req.body;
   try {
@@ -290,7 +290,7 @@ router.post('/department-heads/:id/stages', async (req, res) => {
 });
 
 // Remove a stage from a department head
-router.delete('/department-heads/:id/stages/:stage', async (req, res) => {
+router.delete('/department-heads/:id/stages/:stage', authenticateToken, async (req, res) => {
   const { id, stage } = req.params;
   try {
     const { error } = await db.supabase
@@ -349,6 +349,28 @@ router.put('/department-heads/stage-assignment', requireRole('admin'), async (re
       .from('users')
       .update({ role: 'department_head' })
       .eq('id', new_department_head_id);
+
+    // --- DYNAMIC REASSIGNMENT LOGIC ---
+    // 1. Get all department members for this stage
+    const { data: members, error: membersError } = await db.supabase
+      .from('department_members')
+      .select('id')
+      .eq('stage', stage);
+    if (membersError) throw membersError;
+    const memberIds = (members || []).map(m => m.id);
+    // 2. Build NOT IN list for SQL
+    const notInIds = [new_department_head_id, ...memberIds];
+    // 3. Update all orders for this stage where assignee_id is not the new head or a member
+    const { data: updatedOrders, error: updateError, count } = await db.supabase
+      .from('orders')
+      .update({ assignee_id: new_department_head_id })
+      .eq('granular_status', stage)
+      .not('assignee_id', 'in', `(${notInIds.map(id => `'${id}'`).join(',')})`)
+      .select('id', { count: 'exact' });
+    if (updateError) throw updateError;
+    console.log(`[DEPT HEAD REASSIGN] Updated ${count || (updatedOrders ? updatedOrders.length : 0)} orders for stage '${stage}' to new head ${new_department_head_id}`);
+    // --- END DYNAMIC REASSIGNMENT LOGIC ---
+
     res.json({ success: true, message: 'Department head updated for stage.' });
   } catch (error) {
     console.error('Error updating department head for stage:', error);

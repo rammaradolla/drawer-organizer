@@ -1,19 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useUser } from './UserProvider';
 import { supabase } from '../utils/supabaseClient'; // Assuming you have this configured
+// Import shadcn/ui MultiSelect
+import { MultiSelect } from "./ui/multi-select";
 
 function AdminDashboard() {
   const { user } = useUser();
-  const [operationsUsers, setOperationsUsers] = useState([]);
-  const [newUserEmail, setNewUserEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [departmentHeads, setDepartmentHeads] = useState([]);
-  const [editingHead, setEditingHead] = useState(null);
-  const [activeTab, setActiveTab] = useState('operations');
-  const [departmentMembers, setDepartmentMembers] = useState([]);
-  const [editingMember, setEditingMember] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [userRoleFilters, setUserRoleFilters] = useState({
     admin: false,
@@ -23,7 +18,6 @@ function AdminDashboard() {
   });
   const ALL_ROLES = ['admin', 'operations', 'department_head', 'department_member', 'customer'];
   const [userSearch, setUserSearch] = useState('');
-  const [headUsers, setHeadUsers] = useState([]);
 
   // List of all operational stages
   const OPERATIONAL_STAGES = [
@@ -40,140 +34,6 @@ function AdminDashboard() {
     "Delivered"
   ];
 
-  const fetchOperationsUsers = async () => {
-    setLoading(true);
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-
-    try {
-      const response = await fetch('/api/admin/users?role=operations', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to fetch users');
-      }
-      const data = await response.json();
-      setOperationsUsers(data.users);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchOperationsUsers();
-  }, []);
-
-  const handleRoleChange = async (targetUserEmail, newRole) => {
-    setError('');
-    setMessage('');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    
-    try {
-      const response = await fetch('/api/admin/users/role', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ email: targetUserEmail, role: newRole }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to update role');
-      }
-      
-      setMessage(`Successfully set role for ${targetUserEmail} to ${newRole}.`);
-      setNewUserEmail('');
-      fetchOperationsUsers(); // Refresh the list
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-  
-  const handleAddOperator = (e) => {
-    e.preventDefault();
-    if (!newUserEmail) {
-      setError('Please enter an email address.');
-      return;
-    }
-    handleRoleChange(newUserEmail, 'operations');
-  };
-
-  const handleRemoveOperator = (email) => {
-    if (window.confirm(`Are you sure you want to remove ${email} from the operations role? Their role will be set to 'customer'.`)) {
-      handleRoleChange(email, 'customer');
-    }
-  };
-
-  async function fetchDepartmentHeads() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    const res = await fetch('/api/admin/department-heads', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const data = await res.json();
-    if (data.success) {
-      setDepartmentHeads(data.department_heads);
-    }
-  }
-
-  async function fetchHeadUsers() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    const res = await fetch('/api/admin/users?role=department_head', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const data = await res.json();
-    if (data.success) setHeadUsers(data.users);
-  }
-
-  useEffect(() => {
-    fetchDepartmentHeads();
-    fetchHeadUsers();
-  }, []);
-
-  async function fetchDepartmentMembers() {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    const res = await fetch('/api/admin/department-members', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const data = await res.json();
-    if (data.success) setDepartmentMembers(data.department_members);
-  }
-
-  useEffect(() => {
-    if (activeTab === 'departmentMembers') fetchDepartmentMembers();
-  }, [activeTab]);
-
-  async function saveDepartmentMember(member) {
-    const method = member.id ? 'PUT' : 'POST';
-    const url = member.id ? `/api/admin/department-members/${member.id}` : '/api/admin/department-members';
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData?.session?.access_token;
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(member),
-    });
-    await fetchDepartmentMembers();
-    setEditingMember(null);
-  }
-
-  async function deleteDepartmentMember(id) {
-    await fetch(`/api/admin/department-members/${id}`, { method: 'DELETE' });
-    await fetchDepartmentMembers();
-  }
-
   async function fetchAllUsers() {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData?.session?.access_token;
@@ -185,8 +45,8 @@ function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (activeTab === 'manageUsers') fetchAllUsers();
-  }, [activeTab]);
+    fetchAllUsers();
+  }, []);
 
   async function handleUserRoleChange(userId, newRole) {
     const user = allUsers.find(u => u.id === userId);
@@ -203,6 +63,68 @@ function AdminDashboard() {
     });
     fetchAllUsers();
   }
+
+  // Add state and handler for user stages selection
+  const [userStages, setUserStages] = useState({});
+  async function handleUserStagesChange(userId, selectedStages, role) {
+    // Find current stages for this user
+    const currentStages = userStages[userId] || [];
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    // Add new stages
+    for (const stage of selectedStages) {
+      if (!currentStages.includes(stage)) {
+        // Call backend to add stage
+        await fetch(`/api/admin/department-heads/${userId}/stages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ stage })
+        });
+      }
+    }
+    // Remove unselected stages
+    for (const stage of currentStages) {
+      if (!selectedStages.includes(stage)) {
+        // Call backend to remove stage
+        await fetch(`/api/admin/department-heads/${userId}/stages/${encodeURIComponent(stage)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+      }
+    }
+    setUserStages(prev => ({ ...prev, [userId]: selectedStages }));
+  }
+
+  // When loading users, also fetch their current stages and set userStages
+  useEffect(() => {
+    async function fetchUserStages() {
+      const stagesMap = {};
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      for (const user of allUsers) {
+        if (user.role === 'department_head') {
+          // Fetch from department_head_stages
+          const res = await fetch(`/api/admin/department-heads/${user.id}/stages`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          const data = await res.json();
+          stagesMap[user.id] = data || [];
+        } else if (user.role === 'department_member') {
+          // Fetch from department_members
+          const res = await fetch(`/api/admin/department-members?user_id=${user.id}`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+          const data = await res.json();
+          // Assume data.department_members is an array of member records, each with a 'stage' property
+          stagesMap[user.id] = data.department_members
+            ? data.department_members.map(m => m.stage)
+            : [];
+        }
+      }
+      setUserStages(stagesMap);
+    }
+    if (allUsers.length > 0) fetchUserStages();
+  }, [allUsers]);
 
   const filteredUsers = useMemo(() => {
     const activeRoles = Object.entries(userRoleFilters).filter(([role, checked]) => checked).map(([role]) => role);
@@ -233,250 +155,84 @@ function AdminDashboard() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
+    <div className="min-h-screen w-full flex flex-col p-6 bg-gray-50">
       <h2 className="text-2xl font-bold mb-6">Admin Dashboard</h2>
-      <div className="flex gap-4 mb-6">
-        <button className={`px-4 py-2 rounded ${activeTab === 'operations' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`} onClick={() => setActiveTab('operations')}>Operations Users</button>
-        <button className={`px-4 py-2 rounded ${activeTab === 'departmentHeads' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`} onClick={() => setActiveTab('departmentHeads')}>Department Heads</button>
-        <button className={`px-4 py-2 rounded ${activeTab === 'departmentMembers' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`} onClick={() => setActiveTab('departmentMembers')}>Department Members</button>
-        <button className={`px-4 py-2 rounded ${activeTab === 'manageUsers' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`} onClick={() => setActiveTab('manageUsers')}>Manage Users</button>
+      <h3 className="text-xl font-semibold mb-4">Manage Users</h3>
+      <div className="mb-4 flex gap-4 items-center">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={userRoleFilters.admin} onChange={e => setUserRoleFilters(f => ({ ...f, admin: e.target.checked }))} />
+          Admin
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={userRoleFilters.operations} onChange={e => setUserRoleFilters(f => ({ ...f, operations: e.target.checked }))} />
+          Operations
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={userRoleFilters.department_head} onChange={e => setUserRoleFilters(f => ({ ...f, department_head: e.target.checked }))} />
+          Department Head
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={userRoleFilters.department_member} onChange={e => setUserRoleFilters(f => ({ ...f, department_member: e.target.checked }))} />
+          Department Member
+        </label>
+        <input
+          type="text"
+          placeholder="Search by email or ID..."
+          value={userSearch}
+          onChange={e => setUserSearch(e.target.value)}
+          className="ml-4 px-2 py-1 border rounded min-w-[220px]"
+        />
       </div>
-      {activeTab === 'operations' && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Add Operations User</h3>
-          <form onSubmit={handleAddOperator} className="flex items-center gap-4 mb-6">
-            <input
-              type="email"
-              value={newUserEmail}
-              onChange={(e) => setNewUserEmail(e.target.value)}
-              placeholder="Enter user's email"
-              className="input flex-grow"
-              required
-            />
-            <button type="submit" className="btn-primary whitespace-nowrap">Make Operator</button>
-          </form>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-4">Current Operations Users</h3>
-            {loading ? (
-              <p>Loading...</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="p-3 text-left">Email</th>
-                      <th className="p-3 text-left">Name</th>
-                      <th className="p-3 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {operationsUsers.length > 0 ? (
-                      operationsUsers.map((opUser) => (
-                        <tr key={opUser.id} className="border-b hover:bg-gray-50">
-                          <td className="p-3 font-medium">{opUser.email}</td>
-                          <td className="p-3">{opUser.name || 'N/A'}</td>
-                          <td className="p-3">
-                            <button
-                              onClick={() => handleRemoveOperator(opUser.email)}
-                              className="text-red-600 hover:text-red-800 font-semibold"
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="3" className="p-3 text-center text-gray-500">
-                          No users with the 'operations' role found.
-                        </td>
-                      </tr>
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <table className="min-w-full text-sm">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="p-3 text-left">ID</th>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Email</th>
+              <th className="p-3 text-left">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map(user => (
+                <tr key={user.id} className="border-b hover:bg-gray-50">
+                  <td className="p-3 font-mono text-xs">{user.id}</td>
+                  <td className="p-3">{user.name}</td>
+                  <td className="p-3">{user.email}</td>
+                  <td className="p-3 flex gap-2 items-center">
+                    <select
+                      value={user.role}
+                      onChange={e => handleUserRoleChange(user.id, e.target.value)}
+                      className="rounded px-2 py-1 border"
+                    >
+                      {ALL_ROLES.map(role => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </select>
+                    {/* Replace the single stage dropdown with a multi-select for department_head and department_member */}
+                    {(user.role === 'department_head' || user.role === 'department_member') && (
+                      <MultiSelect
+                        options={OPERATIONAL_STAGES.map(stage => ({ label: stage, value: stage }))}
+                        values={userStages[user.id] || user.stages || []}
+                        onChange={selected => handleUserStagesChange(user.id, selected, user.role)}
+                        placeholder="Select Stages"
+                        className="min-w-[180px]"
+                      />
                     )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {activeTab === 'departmentHeads' && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Department Heads</h3>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-3 text-left">Stage</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Email</th>
-                  <th className="p-3 text-left">Phone</th>
-                  <th className="p-3 text-left">Actions</th>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {departmentHeads.length > 0 ? (
-                  departmentHeads.map((row, idx) => (
-                    <tr key={row.stage} className="border-b hover:bg-gray-50">
-                      <td className="p-3">{row.stage}</td>
-                      <td className="p-3">{row.name || <span className="text-gray-400">Unassigned</span>}</td>
-                      <td className="p-3">{row.email || <span className="text-gray-400">Unassigned</span>}</td>
-                      <td className="p-3">{row.phone || <span className="text-gray-400">Unassigned</span>}</td>
-                      <td className="p-3">
-                        <button className="text-blue-600 hover:text-blue-800 font-semibold mr-2" onClick={() => setEditingHead({ ...row })}>Edit</button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="p-3 text-center text-gray-500">
-                      No department head assignments found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            {editingHead && (
-              <Modal onClose={() => setEditingHead(null)}>
-                <EditDepartmentHeadForm
-                  head={editingHead}
-                  onSave={() => {
-                    setEditingHead(null);
-                    fetchDepartmentHeads();
-                  }}
-                  onCancel={() => setEditingHead(null)}
-                  headUsers={headUsers}
-                />
-              </Modal>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="p-3 text-center text-gray-500">
+                  No users found.
+                </td>
+              </tr>
             )}
-          </div>
-        </div>
-      )}
-      {activeTab === 'departmentMembers' && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Department Members</h3>
-          <button className="mb-4 px-4 py-2 bg-green-600 text-white rounded" onClick={() => setEditingMember({})}>Add Member</button>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Email</th>
-                  <th className="p-3 text-left">Phone</th>
-                  <th className="p-3 text-left">Department Head</th>
-                  <th className="p-3 text-left">Stage</th>
-                  <th className="p-3 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {departmentMembers.length > 0 ? (
-                  departmentMembers.map(member => {
-                    const head = departmentHeads.find(h => h.id === member.department_head_id);
-                    return (
-                      <tr key={member.id} className="border-b hover:bg-gray-50">
-                        <td className="p-3">{member.name}</td>
-                        <td className="p-3">{member.email}</td>
-                        <td className="p-3">{member.phone}</td>
-                        <td className="p-3">{head ? `${head.name} (${head.email})` : 'Unassigned'}</td>
-                        <td className="p-3">{member.stage || ''}</td>
-                        <td className="p-3">
-                          <button className="text-blue-600 hover:text-blue-800 font-semibold mr-2" onClick={() => setEditingMember({ ...member })}>Edit</button>
-                          <button className="text-red-600 hover:text-red-800 font-semibold" onClick={() => deleteDepartmentMember(member.id)}>Delete</button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="p-3 text-center text-gray-500">
-                      No department members found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            {editingMember && (
-              <Modal onClose={() => setEditingMember(null)}>
-                <EditDepartmentMemberForm
-                  member={editingMember}
-                  departmentHeads={departmentHeads}
-                  onSave={async (updatedMember) => { await saveDepartmentMember(updatedMember); }}
-                  onCancel={() => setEditingMember(null)}
-                />
-              </Modal>
-            )}
-          </div>
-        </div>
-      )}
-      {activeTab === 'manageUsers' && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Manage Users</h3>
-          <div className="mb-4 flex gap-4 items-center">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={userRoleFilters.admin} onChange={e => setUserRoleFilters(f => ({ ...f, admin: e.target.checked }))} />
-              Admin
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={userRoleFilters.operations} onChange={e => setUserRoleFilters(f => ({ ...f, operations: e.target.checked }))} />
-              Operations
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={userRoleFilters.department_head} onChange={e => setUserRoleFilters(f => ({ ...f, department_head: e.target.checked }))} />
-              Department Head
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={userRoleFilters.department_member} onChange={e => setUserRoleFilters(f => ({ ...f, department_member: e.target.checked }))} />
-              Department Member
-            </label>
-            <input
-              type="text"
-              placeholder="Search by email or ID..."
-              value={userSearch}
-              onChange={e => setUserSearch(e.target.value)}
-              className="ml-4 px-2 py-1 border rounded min-w-[220px]"
-            />
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-3 text-left">ID</th>
-                  <th className="p-3 text-left">Name</th>
-                  <th className="p-3 text-left">Email</th>
-                  <th className="p-3 text-left">Role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map(user => (
-                    <tr key={user.id} className="border-b hover:bg-gray-50">
-                      <td className="p-3 font-mono text-xs">{user.id}</td>
-                      <td className="p-3">{user.name}</td>
-                      <td className="p-3">{user.email}</td>
-                      <td className="p-3">
-                        <select
-                          value={user.role}
-                          onChange={e => handleUserRoleChange(user.id, e.target.value)}
-                          className="rounded px-2 py-1 border"
-                        >
-                          {ALL_ROLES.map(role => (
-                            <option key={role} value={role}>{role}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="4" className="p-3 text-center text-gray-500">
-                      No users found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -557,8 +313,15 @@ function EditDepartmentHeadForm({ head, onSave, onCancel, headUsers }) {
   );
 }
 
-function EditDepartmentMemberForm({ member, departmentHeads, onSave, onCancel }) {
+function EditDepartmentMemberForm({ member, departmentHeads, onSave, onCancel, fetchDepartmentHeads, fetchDepartmentMembers }) {
   const [form, setForm] = React.useState({ ...member });
+  const [error, setError] = React.useState('');
+
+  // Deduplicate department heads by department_head_id
+  const uniqueDepartmentHeads = Array.from(
+    new Map(departmentHeads.map(h => [h.department_head_id, h])).values()
+  );
+
   // List of all operational stages
   const OPERATIONAL_STAGES = [
     "Payment Confirmed",
@@ -573,9 +336,76 @@ function EditDepartmentMemberForm({ member, departmentHeads, onSave, onCancel })
     "Shipped",
     "Delivered"
   ];
+
   const isEditing = !!form.id;
+
+  // UUID validation function
+  const isValidUUID = (uuid) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(uuid);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    // Debug logging
+    console.log('Form data being submitted:', form);
+    console.log('Department head ID:', form.department_head_id);
+    console.log('Department heads available:', departmentHeads);
+
+    // Validate department_head_id is a UUID
+    if (form.department_head_id && !isValidUUID(form.department_head_id)) {
+      setError(`Invalid department head ID: ${form.department_head_id}. Expected UUID format.`);
+      console.error('Invalid department_head_id:', form.department_head_id);
+      return;
+    }
+
+    // Validate that the department_head_id exists in departmentHeads
+    if (form.department_head_id && !uniqueDepartmentHeads.find(h => h.department_head_id === form.department_head_id)) {
+      setError(`Selected department head not found in available options.`);
+      console.error('Department head not found:', form.department_head_id);
+      return;
+    }
+
+    // If department head was changed, update the mapping for the stage
+    if (form.department_head_id !== member.department_head_id) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const res = await fetch('/api/admin/department-heads/stage-assignment', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ stage: form.stage, new_department_head_id: form.department_head_id })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.message || 'Failed to update department head for stage.');
+          return;
+        }
+        // Refresh department heads and members after update
+        if (fetchDepartmentHeads) await fetchDepartmentHeads();
+        if (fetchDepartmentMembers) await fetchDepartmentMembers();
+      } catch (err) {
+        setError('Failed to update department head for stage.');
+        return;
+      }
+    }
+
+    // Call onSave to close modal and refresh
+    onSave(form);
+  };
+
   return (
-    <form className="flex flex-col gap-4" onSubmit={e => { e.preventDefault(); onSave(form); }}>
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         <label className="font-semibold">Name</label>
         <input value={form.name || ''} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" required className="input" />
@@ -592,14 +422,23 @@ function EditDepartmentMemberForm({ member, departmentHeads, onSave, onCancel })
         <label className="font-semibold">Department Head</label>
         <select
           value={form.department_head_id || ''}
-          onChange={e => setForm(f => ({ ...f, department_head_id: e.target.value }))}
+          onChange={e => {
+            const value = e.target.value;
+            console.log('Department head selected:', value);
+            setForm(f => ({ ...f, department_head_id: value }));
+          }}
           required
           className="input"
         >
           <option value="">Select Department Head</option>
-          {departmentHeads.map(head => (
-            <option key={head.id} value={head.id}>{head.name} ({head.email})</option>
-          ))}
+          {uniqueDepartmentHeads.map(head => {
+            console.log('Rendering department head option:', head.department_head_id, head.name, head.email);
+            return (
+              <option key={head.department_head_id} value={head.department_head_id}>
+                {head.name} ({head.email})
+              </option>
+            );
+          })}
         </select>
       </div>
       <div className="flex flex-col gap-2">

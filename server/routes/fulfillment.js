@@ -630,9 +630,59 @@ router.get('/stats', async (req, res) => {
 });
 
 router.get('/department-heads', authenticateToken, requireAnyRole(['admin', 'operations', 'department_head', 'department_member']), async (req, res) => {
-  const { data, error } = await supabase.from('department_heads').select('*');
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  res.json({ success: true, department_heads: data });
+  try {
+    // List of all operational stages
+    const ALL_STAGES = [
+      "Awaiting Payment",
+      "Payment Confirmed",
+      "Design Review",
+      "Material Sourcing",
+      "Cutting & Milling",
+      "Assembly",
+      "Sanding & Finishing",
+      "Final Quality Check",
+      "Packaging",
+      "Awaiting Carrier Pickup",
+      "Shipped",
+      "Delivered",
+      "Blocked",
+      "Cancelled"
+    ];
+    // Fetch all department head stage assignments
+    const { data: stageAssignments, error: stagesError } = await supabase.from('department_head_stages').select('department_head_id, stage');
+    if (stagesError) return res.status(500).json({ success: false, error: stagesError.message });
+    // Fetch all department heads (with user info)
+    const { data: heads, error: headsError } = await supabase.from('department_heads').select('id, name, email, phone');
+    if (headsError) return res.status(500).json({ success: false, error: headsError.message });
+    // Build a map from department_head_id to head info
+    const headMap = {};
+    heads.forEach(h => { headMap[h.id] = h; });
+    // Build the result: one row per stage
+    const result = ALL_STAGES.map(stage => {
+      const assignment = stageAssignments.find(sa => sa.stage === stage);
+      if (assignment && headMap[assignment.department_head_id]) {
+        const head = headMap[assignment.department_head_id];
+        return {
+          stage,
+          department_head_id: head.id,
+          name: head.name,
+          email: head.email,
+          phone: head.phone
+        };
+      } else {
+        return {
+          stage,
+          department_head_id: null,
+          name: null,
+          email: null,
+          phone: null
+        };
+      }
+    });
+    res.json({ success: true, department_heads: result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // PATCH /orders/:orderId/task-status
