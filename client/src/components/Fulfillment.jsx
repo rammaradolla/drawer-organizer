@@ -291,7 +291,8 @@ export default function Fulfillment() {
             placeholder="Search by email, order ID, tracking..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg"
+            className="px-4 py-2 border rounded-lg"
+            style={{ width: '300px' }}
           />
         </div>
         {/* Only show filters for admin/operations */}
