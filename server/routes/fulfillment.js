@@ -61,16 +61,22 @@ router.get('/orders', async (req, res) => {
       query = query.eq('granular_status', granular_status);
     }
     if (assignee && assignee !== 'all') {
-      query = query.eq('assignee_id', assignee);
+      // Find user by email, get their id, and filter orders by assignee_id
+      const { data: user } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', assignee)
+        .single();
+      if (user && user.id) {
+        query = query.eq('assignee_id', user.id);
+      } else {
+        // No user found, return empty result
+        return res.json({ success: true, orders: [], pagination: { page: parseInt(page), limit: parseInt(limit), total: 0, totalPages: 0 } });
+      }
     }
     if (search) {
-      // Use textSearch for composable full-text search.
-      // The 'fts' column in the 'orders' table should be a tsvector.
-      // The 'english' argument is the text search configuration.
-      query = query.textSearch('fts', search, {
-        type: 'websearch',
-        config: 'english'
-      });
+      // Use ILIKE for simple search on order ID only
+      query = query.ilike('id', `%${search}%`);
     }
 
     // Apply sorting
@@ -139,11 +145,24 @@ router.get('/orders', async (req, res) => {
         }
         console.log('Order assignee:', order.assignee, order);
       });
+
+      // In-memory filter for search by order ID, customer email, tracking number, or user name
+      let filteredOrders = orders;
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredOrders = orders.filter(order =>
+          (order.id && order.id.toLowerCase().includes(searchLower)) ||
+          (order.users && order.users.email && order.users.email.toLowerCase().includes(searchLower)) ||
+          (order.tracking_number && order.tracking_number.toLowerCase().includes(searchLower)) ||
+          (order.users && order.users.name && order.users.name.toLowerCase().includes(searchLower))
+        );
+      }
+      console.log('Filtered orders:', filteredOrders);
     }
 
     res.json({
       success: true,
-      orders,
+      orders: typeof filteredOrders !== 'undefined' ? filteredOrders : orders,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

@@ -124,7 +124,8 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
 
 export default function Fulfillment() {
   const { user } = useUser();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState([]); // all orders fetched from API
+  const [filteredOrders, setFilteredOrders] = useState([]); // orders after in-memory search filter
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [operationalStatus, setOperationalStatus] = useState('all');
@@ -152,12 +153,57 @@ export default function Fulfillment() {
     }
   }, [status, operationalStatus, operationalStatusOptions]);
 
+  // Fetch all orders (without search param)
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      let params;
+      if (user?.role === 'department_head' || user?.role === 'department_member') {
+        params = {};
+      } else {
+        params = {
+          status,
+          granular_status: operationalStatus,
+          assignee,
+        };
+      }
+      const { data } = await apiClient.get('/fulfillment/orders', { params });
+      setOrders(data.orders || []);
+    } catch (error) {
+      console.error('Failed to fetch orders:', error);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // In-memory search and filter
+  useEffect(() => {
+    const searchLower = search.toLowerCase();
+    setFilteredOrders(
+      orders.filter(order =>
+        // Status filter
+        (status === 'all' || order.status === status) &&
+        // Operational status filter
+        (operationalStatus === 'all' || order.granular_status === operationalStatus) &&
+        // Search filter
+        (
+          (order.id && order.id.toLowerCase().includes(searchLower)) ||
+          (order.users && order.users.email && order.users.email.toLowerCase().includes(searchLower)) ||
+          (order.tracking_number && order.tracking_number.toLowerCase().includes(searchLower)) ||
+          (order.users && order.users.name && order.users.name.toLowerCase().includes(searchLower))
+        )
+      )
+    );
+  }, [search, orders, status, operationalStatus]);
+
+  // Fetch orders when filters (except search) change
   useEffect(() => {
     fetchOrders();
     fetchOperationsUsers();
     fetchDepartmentHeads();
     // eslint-disable-next-line
-  }, [status, operationalStatus, debouncedSearch, assignee]);
+  }, [status, operationalStatus, assignee]);
 
   async function fetchOperationsUsers() {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -181,35 +227,6 @@ export default function Fulfillment() {
     console.log('Fetched department heads:', data);
     if (data.success) setDepartmentHeads(data.department_heads);
   }
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const { data } = await apiClient.get('/fulfillment/orders', {
-        params: {
-          status,
-          granular_status: operationalStatus,
-          search: debouncedSearch,
-        },
-      });
-      console.log('Fetched orders:', data.orders);
-      let filteredOrders = data.orders || [];
-      if (assignee !== 'all') {
-        filteredOrders = filteredOrders.filter(order => {
-          const stage = order.granular_status;
-          const assigneeId = order.stage_assignees && order.stage_assignees[stage];
-          console.log('Filtering order', order.id, 'stage:', stage, 'assigneeId:', assigneeId, 'selected:', assignee);
-          return assigneeId === assignee;
-        });
-      }
-      setOrders(filteredOrders);
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-      setOrders([]); // Set to empty array on error to prevent crashes
-    } finally {
-      setLoading(false);
-    }
-  };
 
   async function updateOrder(orderId, updates) {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -277,52 +294,57 @@ export default function Fulfillment() {
             className="w-full px-4 py-2 border rounded-lg"
           />
         </div>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-          className="px-4 py-2 border rounded-lg bg-white"
-        >
-          <option value="all">All Statuses</option>
-          {Object.keys(STATUSES).map(statusKey => (
-            <option key={statusKey} value={statusKey}>
-              {STATUSES[statusKey].label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={operationalStatus}
-          onChange={(e) => setOperationalStatus(e.target.value)}
-          className="px-4 py-2 border rounded-lg bg-white"
-          disabled={operationalStatusOptions.length === 0}
-        >
-          <option value="all">All Operational Statuses</option>
-          {operationalStatusOptions.map(opStatus => (
-            <option key={opStatus} value={opStatus}>
-              {opStatus}
-            </option>
-          ))}
-        </select>
-        <select
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-          className="px-4 py-2 border rounded-lg bg-white"
-        >
-          <option value="all">All Assignees</option>
-          {departmentHeads.map(dh => (
-            <option key={dh.id} value={dh.id}>{dh.name} ({dh.email})</option>
-          ))}
-        </select>
-        <button
-          className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-semibold ml-2"
-          onClick={() => {
-            setStatus('all');
-            setOperationalStatus('all');
-            setAssignee('all');
-            setSearch('');
-          }}
-        >
-          Clear All Filters
-        </button>
+        {/* Only show filters for admin/operations */}
+        {!(user?.role === 'department_head' || user?.role === 'department_member') && (
+          <>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-4 py-2 border rounded-lg bg-white"
+            >
+              <option value="all">All Statuses</option>
+              {Object.keys(STATUSES).map(statusKey => (
+                <option key={statusKey} value={statusKey}>
+                  {STATUSES[statusKey].label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={operationalStatus}
+              onChange={(e) => setOperationalStatus(e.target.value)}
+              className="px-4 py-2 border rounded-lg bg-white"
+              disabled={operationalStatusOptions.length === 0}
+            >
+              <option value="all">All Operational Statuses</option>
+              {operationalStatusOptions.map(opStatus => (
+                <option key={opStatus} value={opStatus}>
+                  {opStatus}
+                </option>
+              ))}
+            </select>
+            <select
+              value={assignee}
+              onChange={(e) => setAssignee(e.target.value)}
+              className="px-4 py-2 border rounded-lg bg-white"
+            >
+              <option value="all">All Assignees</option>
+              {departmentHeads.map(dh => (
+                <option key={dh.id} value={dh.email}>{dh.name} ({dh.email})</option>
+              ))}
+            </select>
+            <button
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-semibold ml-2"
+              onClick={() => {
+                setStatus('all');
+                setOperationalStatus('all');
+                setAssignee('all');
+                setSearch('');
+              }}
+            >
+              Clear All Filters
+            </button>
+          </>
+        )}
       </div>
       <div className="overflow-x-auto bg-white rounded shadow">
         <table className="min-w-full text-sm">
@@ -343,9 +365,9 @@ export default function Fulfillment() {
           <tbody>
             {loading ? (
               <tr><td colSpan={10} className="text-center p-6">Loading...</td></tr>
-            ) : orders.length === 0 ? (
+            ) : filteredOrders.length === 0 ? (
               <tr><td colSpan={10} className="text-center p-6">No orders found.</td></tr>
-            ) : orders.map(order => {
+            ) : filteredOrders.map(order => {
               const isAssignedHead = user?.role === 'department_head' && order.current_department_head_id === user.id;
               const isAssignedMember = user?.role === 'department_member' && order.current_department_member_id === user.id;
               return (
