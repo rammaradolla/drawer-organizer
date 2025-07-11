@@ -18,6 +18,11 @@ function AdminDashboard() {
   });
   const ALL_ROLES = ['admin', 'operations', 'department_head', 'department_member', 'customer'];
   const [userSearch, setUserSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('users');
+  const [auditLog, setAuditLog] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState('');
+  const [auditLogFilter, setAuditLogFilter] = useState('all');
 
   // List of all operational stages
   const OPERATIONAL_STAGES = [
@@ -126,6 +131,30 @@ function AdminDashboard() {
     if (allUsers.length > 0) fetchUserStages();
   }, [allUsers]);
 
+  // Fetch audit log entries (impersonation events)
+  useEffect(() => {
+    if (activeTab !== 'audit') return;
+    async function fetchAuditLog() {
+      setAuditLoading(true);
+      setAuditError('');
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        const res = await fetch('/api/admin/audit-log?actions=impersonation_started,impersonation_ended', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+        if (data.success) setAuditLog(data.entries);
+        else setAuditError(data.message || 'Failed to fetch audit log');
+      } catch (e) {
+        setAuditError('Failed to fetch audit log');
+      } finally {
+        setAuditLoading(false);
+      }
+    }
+    fetchAuditLog();
+  }, [activeTab]);
+
   const filteredUsers = useMemo(() => {
     const activeRoles = Object.entries(userRoleFilters).filter(([role, checked]) => checked).map(([role]) => role);
     let users = allUsers;
@@ -157,82 +186,159 @@ function AdminDashboard() {
   return (
     <div className="min-h-screen w-full flex flex-col p-6 bg-gray-50">
       <h2 className="text-2xl font-bold mb-6">Admin Dashboard</h2>
-      <h3 className="text-xl font-semibold mb-4">Manage Users</h3>
-      <div className="mb-4 flex gap-4 items-center">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={userRoleFilters.admin} onChange={e => setUserRoleFilters(f => ({ ...f, admin: e.target.checked }))} />
-          Admin
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={userRoleFilters.operations} onChange={e => setUserRoleFilters(f => ({ ...f, operations: e.target.checked }))} />
-          Operations
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={userRoleFilters.department_head} onChange={e => setUserRoleFilters(f => ({ ...f, department_head: e.target.checked }))} />
-          Department Head
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={userRoleFilters.department_member} onChange={e => setUserRoleFilters(f => ({ ...f, department_member: e.target.checked }))} />
-          Department Member
-        </label>
-        <input
-          type="text"
-          placeholder="Search by email or ID..."
-          value={userSearch}
-          onChange={e => setUserSearch(e.target.value)}
-          className="ml-4 px-2 py-1 border rounded min-w-[220px]"
-        />
+      <div className="mb-6 flex gap-4">
+        <button className={`px-4 py-2 rounded font-semibold ${activeTab === 'users' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`} onClick={() => setActiveTab('users')}>Manage Users</button>
+        <button className={`px-4 py-2 rounded font-semibold ${activeTab === 'audit' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`} onClick={() => setActiveTab('audit')}>Audit Log</button>
       </div>
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-3 text-left">ID</th>
-              <th className="p-3 text-left">Name</th>
-              <th className="p-3 text-left">Email</th>
-              <th className="p-3 text-left">Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map(user => (
-                <tr key={user.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3 font-mono text-xs">{user.id}</td>
-                  <td className="p-3">{user.name}</td>
-                  <td className="p-3">{user.email}</td>
-                  <td className="p-3 flex gap-2 items-center">
-                    <select
-                      value={user.role}
-                      onChange={e => handleUserRoleChange(user.id, e.target.value)}
-                      className="rounded px-2 py-1 border"
-                    >
-                      {ALL_ROLES.map(role => (
-                        <option key={role} value={role}>{role}</option>
-                      ))}
-                    </select>
-                    {/* Replace the single stage dropdown with a multi-select for department_head and department_member */}
-                    {(user.role === 'department_head' || user.role === 'department_member') && (
-                      <MultiSelect
-                        options={OPERATIONAL_STAGES.map(stage => ({ label: stage, value: stage }))}
-                        values={userStages[user.id] || user.stages || []}
-                        onChange={selected => handleUserStagesChange(user.id, selected, user.role)}
-                        placeholder="Select Stages"
-                        className="min-w-[180px]"
-                      />
-                    )}
-                  </td>
+      {activeTab === 'users' && (
+        <>
+          <h3 className="text-xl font-semibold mb-4">Manage Users</h3>
+          <div className="mb-4 flex gap-4 items-center">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={userRoleFilters.admin} onChange={e => setUserRoleFilters(f => ({ ...f, admin: e.target.checked }))} />
+              Admin
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={userRoleFilters.operations} onChange={e => setUserRoleFilters(f => ({ ...f, operations: e.target.checked }))} />
+              Operations
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={userRoleFilters.department_head} onChange={e => setUserRoleFilters(f => ({ ...f, department_head: e.target.checked }))} />
+              Department Head
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={userRoleFilters.department_member} onChange={e => setUserRoleFilters(f => ({ ...f, department_member: e.target.checked }))} />
+              Department Member
+            </label>
+            <input
+              type="text"
+              placeholder="Search by email or ID..."
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              className="ml-4 px-2 py-1 border rounded min-w-[220px]"
+            />
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-3 text-left">ID</th>
+                  <th className="p-3 text-left">Name</th>
+                  <th className="p-3 text-left">Email</th>
+                  <th className="p-3 text-left">Role</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="4" className="p-3 text-center text-gray-500">
-                  No users found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map(user => (
+                    <tr key={user.id} className="border-b hover:bg-gray-50">
+                      <td className="p-3 font-mono text-xs">{user.id}</td>
+                      <td className="p-3">{user.name}</td>
+                      <td className="p-3">{user.email}</td>
+                      <td className="p-3 flex gap-2 items-center">
+                        <select
+                          value={user.role}
+                          onChange={e => handleUserRoleChange(user.id, e.target.value)}
+                          className="rounded px-2 py-1 border"
+                        >
+                          {ALL_ROLES.map(role => (
+                            <option key={role} value={role}>{role}</option>
+                          ))}
+                        </select>
+                        {/* Replace the single stage dropdown with a multi-select for department_head and department_member */}
+                        {(user.role === 'department_head' || user.role === 'department_member') && (
+                          <MultiSelect
+                            options={OPERATIONAL_STAGES.map(stage => ({ label: stage, value: stage }))}
+                            values={userStages[user.id] || user.stages || []}
+                            onChange={selected => handleUserStagesChange(user.id, selected, user.role)}
+                            placeholder="Select Stages"
+                            className="min-w-[180px]"
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="4" className="p-3 text-center text-gray-500">
+                      No users found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {activeTab === 'audit' && (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-xl font-semibold mb-4">Impersonation Audit Log</h3>
+          <div className="mb-4 flex gap-2">
+            <button
+              className={`px-3 py-1 rounded font-semibold ${auditLogFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+              onClick={() => setAuditLogFilter('all')}
+            >All Events</button>
+            <button
+              className={`px-3 py-1 rounded font-semibold ${auditLogFilter === 'impersonation' ? 'bg-yellow-400 text-yellow-900' : 'bg-gray-200 text-gray-800'}`}
+              onClick={() => setAuditLogFilter('impersonation')}
+            >Impersonation Events</button>
+            <button
+              className={`px-3 py-1 rounded font-semibold ${auditLogFilter === 'direct' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-800'}`}
+              onClick={() => setAuditLogFilter('direct')}
+            >Direct Actions</button>
+          </div>
+          {auditLoading ? (
+            <div>Loading...</div>
+          ) : auditError ? (
+            <div className="text-red-600">{auditError}</div>
+          ) : auditLog.length === 0 ? (
+            <div className="text-gray-500">No impersonation events found.</div>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-3 text-left">Timestamp</th>
+                  <th className="p-3 text-left">Action</th>
+                  <th className="p-3 text-left">Admin</th>
+                  <th className="p-3 text-left">Target User</th>
+                  <th className="p-3 text-left">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog
+                  .filter(entry => {
+                    if (auditLogFilter === 'impersonation') return !!entry.details?.impersonator_email;
+                    if (auditLogFilter === 'direct') return !entry.details?.impersonator_email;
+                    return true;
+                  })
+                  .map(entry => {
+                    const isImpersonation = !!entry.details?.impersonator_email;
+                    return (
+                      <tr key={entry.id} className={isImpersonation ? 'bg-yellow-50 border-l-4 border-yellow-400' : ''}>
+                        <td className="p-3 font-mono text-xs">{new Date(entry.created_at).toLocaleString()}</td>
+                        <td className="p-3 font-semibold">
+                          {entry.action}
+                          {isImpersonation && (
+                            <span className="ml-2 px-2 py-1 bg-yellow-200 text-yellow-900 rounded text-xs font-bold">Impersonation</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {isImpersonation
+                            ? `${entry.details.impersonator_email} (as ${entry.details.target_email})`
+                            : entry.details?.impersonator_email || entry.user_id}
+                        </td>
+                        <td className="p-3">{entry.details?.target_email || entry.target_user_id}</td>
+                        <td className="p-3">
+                          <pre className="bg-gray-100 rounded p-1 text-xs overflow-x-auto">{JSON.stringify(entry.details, null, 2)}</pre>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }

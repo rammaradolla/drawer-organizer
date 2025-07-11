@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken, requireRole, requireAnyRole } = require('../middleware/auth');
 const db = require('../utils/db');
+const jwt = require('jsonwebtoken');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -396,6 +397,217 @@ router.put('/department-heads/:id', requireRole('admin'), async (req, res) => {
   } catch (error) {
     console.error('Error updating department head:', error);
     res.status(500).json({ success: false, message: 'Failed to update department head', error: error.message });
+  }
+});
+
+// POST /api/admin/impersonate - Start impersonation
+router.post('/impersonate', requireAnyRole(['admin', 'operations']), async (req, res) => {
+  const { targetUserId } = req.body;
+  const impersonatorId = req.user.id;
+
+  if (!targetUserId) {
+    return res.status(400).json({ success: false, message: 'Target user ID is required.' });
+  }
+
+  try {
+    // Get target user details
+    const { data: targetUser, error: targetError } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .eq('id', targetUserId)
+      .single();
+
+    if (targetError || !targetUser) {
+      return res.status(404).json({ success: false, message: 'Target user not found.' });
+    }
+
+    // Check impersonation permissions
+    const impersonator = req.user;
+    if (impersonator.role === 'operations') {
+      if (!['customer', 'department_head', 'department_member'].includes(targetUser.role)) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Operations users can only impersonate customers and department members.' 
+        });
+      }
+    } else if (impersonator.role === 'admin') {
+      if (targetUser.role === 'admin' && impersonator.id !== targetUser.id) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Admins cannot impersonate other admins for security reasons.' 
+        });
+      }
+    }
+    if (impersonator.id === targetUser.id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You cannot impersonate yourself.' 
+      });
+    }
+
+    // --- JWT GENERATION ---
+    const payload = {
+      sub: targetUser.id,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: targetUser.role,
+      impersonator_id: impersonator.id,
+      impersonator_role: impersonator.role,
+      impersonation: true
+    };
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET || process.env.JWT_SECRET;
+    const token = jwt.sign(payload, jwtSecret, { expiresIn: '2h' });
+
+    // --- Store impersonation session ---
+    const { data: sessionRow, error: sessionError } = await supabase
+      .from('impersonation_sessions')
+      .insert({
+        impersonator_id: impersonator.id,
+        target_user_id: targetUser.id,
+        session_token: token,
+        is_active: true
+      })
+      .select()
+      .single();
+    if (sessionError) {
+      console.error('Failed to store impersonation session:', sessionError);
+    }
+
+    // --- Log the impersonation action ---
+    const { error: logError } = await supabase
+      .from('audit_log')
+      .insert({
+        action: 'impersonation_started',
+        user_id: impersonator.id,
+        target_user_id: targetUser.id,
+        details: {
+          impersonator_email: impersonator.email,
+          impersonator_role: impersonator.role,
+          target_email: targetUser.email,
+          target_role: targetUser.role,
+          timestamp: new Date().toISOString()
+        }
+      });
+    if (logError) {
+      console.error('Failed to log impersonation:', logError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Impersonation started successfully.',
+      token,
+      session: sessionRow,
+      targetUser: {
+        id: targetUser.id,
+        email: targetUser.email,
+        name: targetUser.name,
+        role: targetUser.role
+      },
+      impersonator: {
+        id: impersonator.id,
+        email: impersonator.email,
+        name: impersonator.name,
+        role: impersonator.role
+      }
+    });
+  } catch (error) {
+    console.error('Error starting impersonation:', error);
+    res.status(500).json({ success: false, message: 'Failed to start impersonation', error: error.message });
+  }
+});
+
+// POST /api/admin/impersonate/end - End impersonation
+router.post('/impersonate/end', requireAnyRole(['admin', 'operations']), async (req, res) => {
+  const { targetUserId } = req.body;
+  const impersonatorId = req.user.id;
+
+  if (!targetUserId) {
+    return res.status(400).json({ success: false, message: 'Target user ID is required.' });
+  }
+
+  try {
+    // Get target user details for logging
+    const { data: targetUser, error: targetError } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .eq('id', targetUserId)
+      .single();
+
+    if (targetError || !targetUser) {
+      return res.status(404).json({ success: false, message: 'Target user not found.' });
+    }
+
+    // Log the end of impersonation
+    const { error: logError } = await supabase
+      .from('audit_log')
+      .insert({
+        action: 'impersonation_ended',
+        user_id: impersonatorId,
+        target_user_id: targetUser.id,
+        details: {
+          impersonator_email: req.user.email,
+          impersonator_role: req.user.role,
+          target_email: targetUser.email,
+          target_role: targetUser.role,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    if (logError) {
+      console.error('Failed to log impersonation end:', logError);
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Impersonation ended successfully.' 
+    });
+
+  } catch (error) {
+    console.error('Error ending impersonation:', error);
+    res.status(500).json({ success: false, message: 'Failed to end impersonation', error: error.message });
+  }
+});
+
+// GET /api/admin/users/impersonatable - Get users that can be impersonated
+router.get('/users/impersonatable', requireAnyRole(['admin', 'operations']), async (req, res) => {
+  try {
+    const impersonator = req.user;
+    let allowedRoles = [];
+
+    // Determine which roles the impersonator can impersonate
+    if (impersonator.role === 'admin') {
+      // Admin can impersonate anyone except other admins
+      allowedRoles = ['customer', 'operations', 'department_head', 'department_member'];
+    } else if (impersonator.role === 'operations') {
+      // Operations can only impersonate customers and department members
+      allowedRoles = ['customer', 'department_head', 'department_member'];
+    }
+
+    // Get users with allowed roles
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .in('role', allowedRoles)
+      .order('name', { ascending: true });
+
+    if (error) throw error;
+
+    // Filter out the impersonator themselves
+    const filteredUsers = users.filter(user => user.id !== impersonator.id);
+
+    res.json({ success: true, users: filteredUsers });
+  } catch (error) {
+    console.error('Error fetching impersonatable users:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch users', error: error.message });
+  }
+});
+
+// GET /api/admin/users/me - Return info for the current (possibly impersonated) user
+router.get('/users/me', authenticateToken, async (req, res) => {
+  try {
+    res.json({ success: true, user: req.user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch user info', error: error.message });
   }
 });
 

@@ -13,6 +13,12 @@ export type SupabaseUser = Pick<User, 'id' | 'email' | 'user_metadata'> & {
   name?: string;
   role?: string;
   access_token?: string;
+  isImpersonating?: boolean;
+  impersonator?: {
+    id: string;
+    role: string;
+    email?: string;
+  };
 };
 
 export function getCurrentUser(session: Session | null): SupabaseUser | null {

@@ -197,13 +197,26 @@ export default function Fulfillment() {
     );
   }, [search, orders, status, operationalStatus]);
 
-  // Fetch orders when filters (except search) change
+  // Replace the useEffect that fetches orders and users on filter change:
+  // useEffect(() => {
+  //   fetchOrders();
+  //   fetchOperationsUsers();
+  //   fetchDepartmentHeads();
+  //   // eslint-disable-next-line
+  // }, [status, operationalStatus, assignee]);
+  //
+  // With:
   useEffect(() => {
+    if (!user) return;
     fetchOrders();
     fetchOperationsUsers();
     fetchDepartmentHeads();
+    // Optionally clear selected order, audit log, etc. if user changes
+    setSelectedOrder(null);
+    setAuditedOrderId(null);
+    setAuditLog([]);
     // eslint-disable-next-line
-  }, [status, operationalStatus, assignee]);
+  }, [user, status, operationalStatus, assignee]);
 
   async function fetchOperationsUsers() {
     const { data: sessionData } = await supabase.auth.getSession();

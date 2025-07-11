@@ -18,12 +18,14 @@ const authenticateToken = async (req, res, next) => {
 
     // Verify JWT with Supabase JWT secret
     const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-    
+
+    // Always use the sub claim as the user ID (for impersonation tokens)
+    const userId = decoded.sub;
     // Get user details from Supabase
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, role')
-      .eq('id', decoded.sub)
+      .select('id, email, name, role')
+      .eq('id', userId)
       .single();
 
     if (error || !user) {
@@ -35,6 +37,15 @@ const authenticateToken = async (req, res, next) => {
 
     // Attach user info to request
     req.user = user;
+    // Attach impersonator info if present
+    if (decoded.impersonator_id) {
+      req.impersonator = {
+        id: decoded.impersonator_id,
+        role: decoded.impersonator_role
+      };
+      req.user.isImpersonating = true;
+      req.user.impersonator = req.impersonator;
+    }
     next();
   } catch (error) {
     console.error('Authentication error:', error);

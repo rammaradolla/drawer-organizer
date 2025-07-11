@@ -18,6 +18,7 @@ import Fulfillment from './components/Fulfillment';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
 import AdminDashboard from './components/AdminDashboard';
 import { supabase } from './utils/supabaseClient';
+import { startImpersonation, stopImpersonation } from './utils/auth';
 
 const BASE_RATE = 2.50; // $2.50 per square inch (updated from cm)
 const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
@@ -39,9 +40,19 @@ function App() {
   const dispatch = useDispatch();
   const location = useLocation();
   const navigate = useNavigate();
+  const [showImpersonateModal, setShowImpersonateModal] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [allUsers, setAllUsers] = useState([]);
+  const [toast, setToast] = useState({ message: '', type: '' });
+
+  // Helper to show toast
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: '', type: '' }), 3000);
+  };
 
   // User context
-  const { user, loading } = useUser();
+  const { user, loading, refreshUser } = useUser();
   // Sync cart from Supabase on user login/change
   React.useEffect(() => {
     // Don't sync cart if on the checkout success page
@@ -180,6 +191,42 @@ function App() {
     document.title = getTitle();
   }, [user, location.pathname]);
 
+  // Fetch all users for impersonation modal (real API)
+  React.useEffect(() => {
+    async function fetchImpersonatableUsers() {
+      if ((user?.role === 'admin' || user?.role === 'operations') && showImpersonateModal) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData?.session?.access_token;
+          const res = await fetch('/api/admin/users/impersonatable', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const data = await res.json();
+          if (data.success) {
+            setAllUsers(data.users);
+          } else {
+            setAllUsers([]);
+          }
+        } catch (e) {
+          setAllUsers([]);
+        }
+      } else if (!showImpersonateModal) {
+        setAllUsers([]);
+      }
+    }
+    fetchImpersonatableUsers();
+    // eslint-disable-next-line
+  }, [showImpersonateModal, user]);
+
+  const filteredUsers = allUsers.filter(u => {
+    const search = userSearch.toLowerCase();
+    return (
+      (u.name && u.name.toLowerCase().includes(search)) ||
+      (u.email && u.email.toLowerCase().includes(search)) ||
+      (u.role && u.role.toLowerCase().includes(search))
+    );
+  });
+
   // Helper to parse dimensions string (e.g., "30x20x6")
   function parseDimensions(dimStr) {
     if (!dimStr) return { width: 0, depth: 0, height: 0 };
@@ -272,9 +319,56 @@ function App() {
   // Calculate total price from cart items
   const totalPrice = cart.reduce((sum, item) => sum + (item.price || 0), 0);
 
+  console.log('Current user context:', user);
+  // Redirect based on impersonated user role
+  React.useEffect(() => {
+    if (!user || loading) return;
+    // Admin route guard
+    if (location.pathname.startsWith('/admin') && user.role !== 'admin') {
+      if (user.role === 'customer') navigate('/', { replace: true });
+      else if (user.role === 'operations') navigate('/fulfillment', { replace: true });
+      else navigate('/', { replace: true });
+    }
+    // Fulfillment route guard
+    if (location.pathname.startsWith('/fulfillment') && user.role !== 'operations' && user.role !== 'admin' && user.role !== 'department_head' && user.role !== 'department_member') {
+      navigate('/', { replace: true });
+    }
+    // Customer route guard (main page)
+    if (location.pathname === '/' && user.role !== 'customer') {
+      if (user.role === 'admin') navigate('/admin', { replace: true });
+      else if (user.role === 'operations') navigate('/fulfillment', { replace: true });
+    }
+  }, [user, location.pathname, loading, navigate]);
+
   return (
     <div className="min-h-screen bg-gray-50 py-6">
-      <div className="w-full px-4">
+      {/* Impersonation Banner */}
+      {user && user.isImpersonating && (
+        <div className="w-full bg-yellow-100 border-b-2 border-yellow-400 text-yellow-900 px-6 py-3 flex items-center justify-between z-50 fixed top-0 left-0" style={{minHeight: 56}}>
+          <div>
+            <b>Impersonation Mode:</b> You are impersonating <b>{user.name}</b> ({user.role})
+            {user.impersonator && (
+              <span className="ml-2 text-xs text-gray-600">(as {user.impersonator.role})</span>
+            )}
+          </div>
+          <button
+            className="ml-4 px-4 py-2 bg-yellow-300 text-yellow-900 rounded hover:bg-yellow-400 font-semibold"
+            onClick={() => {
+              stopImpersonation();
+              if (typeof refreshUser === 'function') refreshUser();
+              showToast('Impersonation ended.', 'info');
+            }}
+          >
+            Stop Impersonation
+          </button>
+        </div>
+      )}
+      {toast.message && (
+        <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded shadow-lg text-lg font-semibold flex items-center gap-2 animate-fade-in ${toast.type === 'success' ? 'bg-green-100 border border-green-400 text-green-700' : toast.type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' : 'bg-blue-100 border border-blue-400 text-blue-700'}`}> 
+          {toast.message}
+        </div>
+      )}
+      <div className="w-full px-4" style={{paddingTop: user && user.isImpersonating ? 72 : 0}}>
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
             Drawer Organizer Designer
@@ -305,6 +399,17 @@ function App() {
                 </Link>
               </>
             )}
+            {/* Impersonate Button for admin/operations */}
+            {(user && (user.role === 'admin' || user.role === 'operations')) && (
+              <button
+                className="px-4 py-2 bg-yellow-200 text-yellow-900 rounded font-semibold ml-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={() => setShowImpersonateModal(true)}
+                disabled={user.isImpersonating}
+                title={user.isImpersonating ? 'You cannot impersonate another user while already impersonating.' : ''}
+              >
+                Impersonate User
+              </button>
+            )}
             <div className="ml-6">
               {user ? (
                 <UserInfo />
@@ -314,6 +419,67 @@ function App() {
             </div>
           </div>
         </div>
+        {/* Impersonate Modal */}
+        {showImpersonateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-lg shadow-lg p-8 min-w-[400px] max-w-[98vw] relative">
+              <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl" onClick={() => setShowImpersonateModal(false)}>&times;</button>
+              <h2 className="text-xl font-bold mb-4">Impersonate User</h2>
+              <input
+                type="text"
+                placeholder="Search by name, email, or role..."
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+                className="mb-4 px-3 py-2 border rounded w-full"
+              />
+              <div className="overflow-y-auto" style={{ minHeight: 200, maxHeight: 256 }}>
+                {filteredUsers.length === 0 ? (
+                  <div className="text-gray-500">No users found.</div>
+                ) : (
+                  <ul>
+                    {filteredUsers.map(u => (
+                      <li key={u.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                        <div>
+                          <b>{u.name}</b> <span className="text-xs text-gray-500">({u.email})</span> <span className="text-xs text-gray-400">[{u.role}]</span>
+                        </div>
+                        <button
+                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"
+                          onClick={async () => {
+                            try {
+                              const { data: sessionData } = await supabase.auth.getSession();
+                              const accessToken = sessionData?.session?.access_token;
+                              const res = await fetch('/api/admin/impersonate', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  Authorization: `Bearer ${accessToken}`
+                                },
+                                body: JSON.stringify({ targetUserId: u.id })
+                              });
+                              const data = await res.json();
+                              if (data.success && data.token) {
+                                startImpersonation(data.token);
+                                setShowImpersonateModal(false);
+                                if (typeof refreshUser === 'function') refreshUser();
+                                showToast('Impersonation started!', 'success');
+                              } else {
+                                showToast(data.message || 'Failed to impersonate user.', 'error');
+                              }
+                            } catch (err) {
+                              showToast('Failed to impersonate user.', 'error');
+                            }
+                          }}
+                        >
+                          Impersonate
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {/* Hide InfoBanner for operations and admin users */}
         {(!user || user.role === 'customer') && <InfoBanner />}
         <Routes>
