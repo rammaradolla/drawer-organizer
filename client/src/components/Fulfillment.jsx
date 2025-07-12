@@ -133,8 +133,12 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       disabled={loading}
     >
       {options.map(opt => (
-        <option key={opt.id} value={opt.id}>
-          {opt.name}{opt.email ? ` (${opt.email})` : ''}{opt.role === 'department_head' ? ' [Head]' : ''}{opt.role === 'department_member' ? ' [Member]' : ''}
+        <option
+          key={opt.id}
+          value={opt.id}
+          title={`${opt.name}${opt.email ? ` | ${opt.email}` : ''}${opt.role ? ` | ${opt.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}` : ''}`}
+        >
+          {opt.name}{opt.role === 'department_head' ? ' [Head]' : ''}{opt.role === 'department_member' ? ' [Member]' : ''}
         </option>
       ))}
     </select>
@@ -390,15 +394,15 @@ export default function Fulfillment() {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-gray-100">
-              <th className="p-3 text-left">Order ID</th>
-              <th className="p-3 text-left">Customer</th>
-              <th className="p-3 text-left">Status (Customer)</th>
-              <th className="p-3 text-left">Status (Operational)</th>
-              <th className="p-3 text-left">Assignee</th>
-              <th className="p-3 text-left">Task Status</th>
-              <th className="p-3 text-left">Tracking</th>
-              <th className="p-3 text-left">Total</th>
-              <th className="p-3 text-left">Created</th>
+              <th className="p-3 text-left w-[100px]">Order ID</th>
+              <th className="p-3 text-left w-[140px]">Customer</th>
+              <th className="p-3 text-left w-[110px]">Status (Customer)</th>
+              <th className="p-3 text-left w-[200px]">Status (Operational)</th>
+              <th className="p-3 text-left w-[200px]">Assignee</th>
+              <th className="p-3 text-left w-[110px]">Task Status</th>
+              <th className="p-3 text-left w-[100px]">Tracking</th>
+              <th className="p-3 text-left w-[90px]">Total</th>
+              <th className="p-3 text-left w-[160px]">Created</th>
               <th className="p-3 text-left">Actions</th>
             </tr>
           </thead>
@@ -412,12 +416,12 @@ export default function Fulfillment() {
               const isAssignedMember = user?.role === 'department_member' && order.current_department_member_id === user.id;
               return (
                 <tr key={order.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
-                  <td className="p-3">
+                  <td className="p-3 font-mono text-xs w-[100px]">{order.id.slice(0, 8)}</td>
+                  <td className="p-3 w-[140px]">
                     <div className="font-medium">{order.users?.name || 'N/A'}</div>
                     <div className="text-xs text-gray-500">{order.users?.email}</div>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 w-[110px]">
                     <span className={`px-2 py-1 rounded-full text-xs font-bold ${
                       {
                         pending: 'bg-yellow-200 text-yellow-900',
@@ -430,7 +434,7 @@ export default function Fulfillment() {
                       {order.status.replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 w-[130px]">
                     <select
                       className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'}`}
                       value={order.granular_status}
@@ -441,7 +445,7 @@ export default function Fulfillment() {
                       ))}
                     </select>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 w-[160px]">
                     {/* Assignee Dropdown for admin, operations, and department head; read-only for others */}
                     {['admin', 'operations', 'department_head'].includes(user?.role) ? (
                       <AssigneeDropdown
@@ -456,7 +460,7 @@ export default function Fulfillment() {
                       </span>
                     )}
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 w-[110px]">
                     {/* Task Status Dropdown - always editable, default to in-progress */}
                     <select
                       className="rounded px-2 py-1 border"
@@ -490,12 +494,12 @@ export default function Fulfillment() {
                       <option value="blocked">Blocked</option>
                     </select>
                   </td>
-                  <td className="p-3">
+                  <td className="p-3 w-[100px]">
                     <span>{order.tracking_number || ''}</span>
                     <div className="text-xs text-gray-500">{order.tracking_carrier}</div>
                   </td>
-                  <td className="p-3">${order.total_price?.toFixed(2)}</td>
-                  <td className="p-3">{new Date(order.created_at).toLocaleString()}</td>
+                  <td className="p-3 w-[90px]">${order.total_price?.toFixed(2)}</td>
+                  <td className="p-3 w-[160px]">{new Date(order.created_at).toLocaleString()}</td>
                   <td className="p-3 flex gap-2">
                     <button
                       className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
