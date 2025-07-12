@@ -340,6 +340,14 @@ function App() {
     }
   }, [user, location.pathname, loading, navigate]);
 
+  // Add a useEffect to handle user context changes from impersonation to admin
+  React.useEffect(() => {
+    if (user && user.role === 'admin' && location.pathname !== '/admin' && location.pathname !== '/fulfillment' && !user.isImpersonating) {
+      navigate('/admin', { replace: true });
+    }
+    // eslint-disable-next-line
+  }, [user, location.pathname]);
+
   return (
     <div className="min-h-screen bg-gray-50 py-6">
       {/* Impersonation Banner */}
@@ -355,7 +363,14 @@ function App() {
             className="ml-4 px-4 py-2 bg-yellow-300 text-yellow-900 rounded hover:bg-yellow-400 font-semibold"
             onClick={() => {
               stopImpersonation();
-              if (typeof refreshUser === 'function') refreshUser();
+              if (typeof refreshUser === 'function') {
+                refreshUser().then(() => {
+                  // After user context refresh, if admin and not on /admin, redirect
+                  if (user && user.role === 'admin' && location.pathname !== '/admin') {
+                    navigate('/admin', { replace: true });
+                  }
+                });
+              }
               showToast('Impersonation ended.', 'info');
             }}
           >

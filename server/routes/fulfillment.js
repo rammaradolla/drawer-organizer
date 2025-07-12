@@ -311,8 +311,10 @@ router.patch('/orders/:orderId', async (req, res) => {
       
       if (stageAssignment && stageAssignment.department_head_id) {
         updateData.assignee_id = stageAssignment.department_head_id;
+        updateData.current_department_head_id = stageAssignment.department_head_id; // <-- Set current_department_head_id
       } else {
         updateData.assignee_id = null;
+        updateData.current_department_head_id = null; // <-- Clear if not found
         console.warn('No department head found for stage:', granular_status);
       }
       updateData.task_status = 'in-progress'; // Reset task status for new stage
@@ -725,11 +727,13 @@ router.patch('/orders/:orderId/task-status', async (req, res) => {
     }
 
     // Only assigned department head or member can update
+    const allowedRoles = ['admin', 'operations', 'department_head', 'department_member'];
     if (
+      !allowedRoles.includes(req.user.role) &&
       req.user.id !== order.current_department_head_id &&
       req.user.id !== order.current_department_member_id
     ) {
-      return res.status(403).json({ success: false, message: 'Access denied. Only assigned department head or member can update task status.' });
+      return res.status(403).json({ success: false, message: 'Access denied. Only admin, operations, assigned department head, or member can update task status.' });
     }
 
     // Prepare update object
@@ -770,6 +774,7 @@ router.patch('/orders/:orderId/task-status', async (req, res) => {
           updateData.granular_status = nextStage;
           updateData.status = require('../utils/statusConstants').getCustomerFacingStatus(nextStage);
           updateData.assigned_at = new Date().toISOString();
+          updateData.task_status = 'in-progress'; // <-- Reset task status for new stage
           nextStageAssigned = true;
           auditNote += `. Order moved to next stage: ${nextStage}`;
         }

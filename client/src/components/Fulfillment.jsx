@@ -431,52 +431,41 @@ export default function Fulfillment() {
                     )}
                   </td>
                   <td className="p-3">
-                    {/* Task Status Dropdown or Text */}
-                    {(isAssignedHead || isAssignedMember) ? (
-                      <select
-                        className="rounded px-2 py-1 border"
-                        value={order.task_status || 'in-progress'}
-                        onChange={e => {
-                          // PATCH /orders/:orderId/task-status
-                          const newStatus = e.target.value;
-                          const updateTaskStatus = async () => {
-                            const { data: sessionData } = await supabase.auth.getSession();
-                            const accessToken = sessionData?.session?.access_token;
-                            const res = await fetch(`/api/fulfillment/orders/${order.id}/task-status`, {
-                              method: 'PATCH',
-                              headers: {
-                                'Content-Type': 'application/json',
-                                Authorization: `Bearer ${accessToken}`,
-                              },
-                              body: JSON.stringify({ task_status: newStatus }),
-                            });
-                            if (res.ok) {
-                              fetchOrders();
-                            } else {
-                              const data = await res.json().catch(() => ({}));
-                              alert('Failed to update task status: ' + (data.message || 'Unknown server error'));
-                            }
-                          };
-                          updateTaskStatus();
-                        }}
-                      >
-                        <option value="in-progress">In Progress</option>
-                        <option value="complete">Complete</option>
-                        <option value="blocked">Blocked</option>
-                      </select>
-                    ) : (
-                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100">
-                        {order.task_status || 'in-progress'}
-                      </span>
-                    )}
+                    {/* Task Status Dropdown - always editable, default to in-progress */}
+                    <select
+                      className="rounded px-2 py-1 border"
+                      value={order.task_status || 'in-progress'}
+                      onChange={e => {
+                        // PATCH /orders/:orderId/task-status
+                        const newStatus = e.target.value;
+                        const updateTaskStatus = async () => {
+                          const { data: sessionData } = await supabase.auth.getSession();
+                          const accessToken = sessionData?.session?.access_token;
+                          const res = await fetch(`/api/fulfillment/orders/${order.id}/task-status`, {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              Authorization: `Bearer ${accessToken}`,
+                            },
+                            body: JSON.stringify({ task_status: newStatus }),
+                          });
+                          if (res.ok) {
+                            fetchOrders();
+                          } else {
+                            const data = await res.json().catch(() => ({}));
+                            alert('Failed to update task status: ' + (data.message || 'Unknown server error'));
+                          }
+                        };
+                        updateTaskStatus();
+                      }}
+                    >
+                      <option value="in-progress">In Progress</option>
+                      <option value="complete">Complete</option>
+                      <option value="blocked">Blocked</option>
+                    </select>
                   </td>
                   <td className="p-3">
-                    <input
-                      className="input w-32"
-                      value={order.tracking_number || ''}
-                      placeholder="Tracking #"
-                      onChange={e => updateOrder(order.id, { tracking_number: e.target.value })}
-                    />
+                    <span>{order.tracking_number || ''}</span>
                     <div className="text-xs text-gray-500">{order.tracking_carrier}</div>
                   </td>
                   <td className="p-3">${order.total_price?.toFixed(2)}</td>

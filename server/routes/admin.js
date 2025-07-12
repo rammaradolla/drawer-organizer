@@ -611,4 +611,21 @@ router.get('/users/me', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/admin/audit-log - Returns audit log entries, optionally filtered by action
+router.get('/audit-log', requireRole('admin'), async (req, res) => {
+  try {
+    let query = supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+    const { actions } = req.query;
+    if (actions) {
+      const actionList = actions.split(',').map(a => a.trim());
+      query = query.in('action', actionList);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, entries: data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch audit log', error: error.message });
+  }
+});
+
 module.exports = router; 

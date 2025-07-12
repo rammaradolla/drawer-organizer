@@ -18,7 +18,7 @@ const authenticateToken = async (req, res, next) => {
 
     // Verify JWT with Supabase JWT secret
     const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET);
-
+    
     // Always use the sub claim as the user ID (for impersonation tokens)
     const userId = decoded.sub;
     // Get user details from Supabase
