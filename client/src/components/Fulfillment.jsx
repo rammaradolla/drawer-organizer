@@ -396,7 +396,7 @@ export default function Fulfillment() {
             <tr className="bg-gray-100">
               <th className="p-3 text-left w-[100px]">Order ID</th>
               <th className="p-3 text-left w-[140px]">Customer</th>
-              <th className="p-3 text-left w-[110px]">Status (Customer)</th>
+              <th className="p-3 text-left w-[180px]">Status (Customer)</th>
               <th className="p-3 text-left w-[200px]">Status (Operational)</th>
               <th className="p-3 text-left w-[200px]">Assignee</th>
               <th className="p-3 text-left w-[110px]">Task Status</th>

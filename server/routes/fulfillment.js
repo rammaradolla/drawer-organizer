@@ -26,9 +26,11 @@ const OPERATIONAL_STAGES = [
   "Awaiting Carrier Pickup",
   "Shipped",
   "Delivered",
+  // Exceptional/manual stages (should not be part of normal flow)
   "Blocked",
   "Cancelled"
 ];
+// In the order flow logic, ensure that orders do not progress past 'Delivered'.
 
 // Get all orders with optional filtering
 router.get('/orders', async (req, res) => {
@@ -300,6 +302,12 @@ router.patch('/orders/:orderId', async (req, res) => {
     // Build update object
     const updateData = {};
     if (granular_status) {
+      // Prevent progression past 'Delivered' in normal flow
+      const deliveredIdx = OPERATIONAL_STAGES.indexOf('Delivered');
+      const newStageIdx = OPERATIONAL_STAGES.indexOf(granular_status);
+      if (deliveredIdx >= 0 && newStageIdx > deliveredIdx && !['Blocked', 'Cancelled'].includes(granular_status)) {
+        return res.status(400).json({ success: false, message: 'Orders cannot progress past Delivered in the normal flow.' });
+      }
       updateData.granular_status = granular_status;
       updateData.status = getCustomerFacingStatus(granular_status);
       // --- ENFORCE ASSIGNEE LOGIC ---
@@ -771,23 +779,31 @@ router.patch('/orders/:orderId/task-status', async (req, res) => {
         "Cancelled"
       ];
       const currentStageIdx = OPERATIONAL_STAGES.indexOf(order.granular_status);
-      if (currentStageIdx >= 0 && currentStageIdx < OPERATIONAL_STAGES.length - 1) {
+      // Do not auto-progress past Delivered
+      if (
+        currentStageIdx >= 0 &&
+        currentStageIdx < OPERATIONAL_STAGES.length - 1 &&
+        order.granular_status !== 'Delivered'
+      ) {
         const nextStage = OPERATIONAL_STAGES[currentStageIdx + 1];
-        // Find department head for next stage using the new department_head_stages join table
-        const { data: stageAssignment } = await supabase
-          .from('department_head_stages')
-          .select('department_head_id')
-          .eq('stage', nextStage)
-          .single();
-        if (stageAssignment && stageAssignment.department_head_id) {
-          updateData.current_department_head_id = stageAssignment.department_head_id;
-          updateData.current_department_member_id = null;
-          updateData.granular_status = nextStage;
-          updateData.status = require('../utils/statusConstants').getCustomerFacingStatus(nextStage);
-          updateData.assigned_at = new Date().toISOString();
-          updateData.task_status = 'in-progress'; // <-- Reset task status for new stage
-          nextStageAssigned = true;
-          auditNote += `. Order moved to next stage: ${nextStage}`;
+        // Only auto-progress if next stage is not Blocked or Cancelled
+        if (!['Blocked', 'Cancelled'].includes(nextStage)) {
+          // Find department head for next stage using the new department_head_stages join table
+          const { data: stageAssignment } = await supabase
+            .from('department_head_stages')
+            .select('department_head_id')
+            .eq('stage', nextStage)
+            .single();
+          if (stageAssignment && stageAssignment.department_head_id) {
+            updateData.current_department_head_id = stageAssignment.department_head_id;
+            updateData.current_department_member_id = null;
+            updateData.granular_status = nextStage;
+            updateData.status = require('../utils/statusConstants').getCustomerFacingStatus(nextStage);
+            updateData.assigned_at = new Date().toISOString();
+            updateData.task_status = 'in-progress'; // <-- Reset task status for new stage
+            nextStageAssigned = true;
+            auditNote += `. Order moved to next stage: ${nextStage}`;
+          }
         }
       }
     }
