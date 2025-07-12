@@ -71,6 +71,7 @@ function AdminDashboard() {
 
   // Add state and handler for user stages selection
   const [userStages, setUserStages] = useState({});
+  const [stageError, setStageError] = useState('');
   async function handleUserStagesChange(userId, selectedStages, role) {
     // Find current stages for this user
     const currentStages = userStages[userId] || [];
@@ -78,13 +79,36 @@ function AdminDashboard() {
     const accessToken = sessionData?.session?.access_token;
     // Add new stages
     for (const stage of selectedStages) {
+      if (role === 'department_member' && selectedStages.length > 1) {
+        setStageError('Department members can only be assigned to one stage.');
+        return;
+      }
+      setStageError('');
       if (!currentStages.includes(stage)) {
-        // Call backend to add stage
-        await fetch(`/api/admin/department-heads/${userId}/stages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({ stage })
-        });
+        if (role === 'department_member') {
+          // Validate userId and stage
+          if (!userId || typeof userId !== 'string' || !stage || typeof stage !== 'string') {
+            setError('Invalid user or stage for department member assignment.');
+            continue;
+          }
+          // Call backend to add stage for department member
+          const res = await fetch(`/api/admin/department-members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ user_id: userId, stage })
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            setError(err.message || 'Failed to assign stage to department member.');
+          }
+        } else {
+          // Call backend to add stage for department head
+          await fetch(`/api/admin/department-heads/${userId}/stages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ stage })
+          });
+        }
       }
     }
     // Remove unselected stages
@@ -193,6 +217,11 @@ function AdminDashboard() {
       {activeTab === 'users' && (
         <>
           <h3 className="text-xl font-semibold mb-4">Manage Users</h3>
+          {stageError && (
+            <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded">
+              {stageError}
+            </div>
+          )}
           <div className="mb-4 flex gap-4 items-center">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={userRoleFilters.admin} onChange={e => setUserRoleFilters(f => ({ ...f, admin: e.target.checked }))} />

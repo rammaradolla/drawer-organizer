@@ -331,6 +331,11 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
     if (stage_assignees !== undefined) updateData.stage_assignees = stage_assignees;
 
+    // Defensive: treat '' or undefined as null for assignee_id
+    if (updateData.assignee_id === '' || updateData.assignee_id === undefined) {
+      updateData.assignee_id = null;
+    }
+
     // Add audit trail metadata to the order itself
     updateData.last_updated_by = req.user.id;
     updateData.last_updated_at = new Date().toISOString();

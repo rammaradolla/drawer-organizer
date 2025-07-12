@@ -110,6 +110,10 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
         updateOrder(order.id, { assignee_id: desiredAssigneeId })
           .finally(() => setIsAssigning(false));
       }
+      // When setting assignee to unassigned, use null not ''
+      if (!deptHead && currentAssigneeId !== null) {
+        updateOrder(order.id, { assignee_id: null });
+      }
     }
     loadOptions();
     // eslint-disable-next-line

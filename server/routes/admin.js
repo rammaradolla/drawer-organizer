@@ -139,6 +139,16 @@ router.post('/department-heads', requireRole('admin'), async (req, res) => {
     if (headError) return res.status(500).json({ success: false, error: headError.message });
     // Insert stage assignment
     if (stage) {
+      // Check if stage is already assigned
+      const { data: existing, error: stageCheckError } = await supabase
+        .from('department_head_stages')
+        .select('department_head_id')
+        .eq('stage', stage)
+        .single();
+      if (stageCheckError && stageCheckError.code !== 'PGRST116') return res.status(500).json({ success: false, error: stageCheckError.message });
+      if (existing && existing.department_head_id) {
+        return res.status(400).json({ success: false, error: `Stage '${stage}' is already assigned to another department head. Each stage can only have one department head.` });
+      }
       const { error: stageError } = await supabase.from('department_head_stages').insert([{ department_head_id: user.id, stage }]);
       if (stageError) return res.status(500).json({ success: false, error: stageError.message });
     }
@@ -161,10 +171,13 @@ router.delete('/department-heads/:id', requireRole('admin'), async (req, res) =>
 // List all department members
 router.get('/department-members', requireRole('admin'), async (req, res) => {
   try {
-    const { department_head_id } = req.query;
+    const { department_head_id, user_id } = req.query;
     let query = supabase.from('department_members').select('*');
     if (department_head_id) {
       query = query.eq('department_head_id', department_head_id);
+    }
+    if (user_id) {
+      query = query.eq('id', user_id);
     }
     if (req.user.role === 'department_head') {
       query = query.eq('current_department_head_id', req.user.id);
@@ -181,16 +194,25 @@ router.get('/department-members', requireRole('admin'), async (req, res) => {
 // Create a department member
 router.post('/department-members', requireRole('admin'), async (req, res) => {
   try {
-    const { name, email, phone, department_head_id, stage } = req.body;
-    if (!name || !email || !department_head_id || !stage) {
-      return res.status(400).json({ success: false, message: 'Name, email, department_head_id, and stage are required.' });
+    const { user_id, stage } = req.body;
+    if (!user_id || !stage) {
+      return res.status(400).json({ success: false, message: 'user_id and stage are required.' });
     }
+    // Check if the user exists and is a department_member
+    const { data: user, error: userError } = await supabase.from('users').select('id, role, name, email').eq('id', user_id).single();
+    if (userError || !user || user.role !== 'department_member') {
+      return res.status(404).json({ success: false, message: 'User not found or not a department member.' });
+    }
+    // Check if already assigned to any stage
+    const { data: existing, error: existingError } = await supabase.from('department_members').select('id').eq('id', user_id).single();
+    if (existing && existing.id) {
+      return res.status(400).json({ success: false, message: 'Department member is already assigned to a stage.' });
+    }
+    // Insert department member record with name and email
     const { data, error } = await supabase.from('department_members').insert([
-      { name, email, phone, department_head_id, stage }
+      { id: user_id, name: user.name, email: user.email, stage }
     ]).select();
     if (error) throw error;
-    // Set user role to department_member
-    await supabase.from('users').update({ role: 'department_member' }).eq('email', email);
     res.json({ success: true, department_member: data[0] });
   } catch (error) {
     console.error('Error creating department member:', error);
@@ -230,6 +252,42 @@ router.delete('/department-members/:id', requireRole('admin'), async (req, res) 
   } catch (error) {
     console.error('Error deleting department member:', error);
     res.status(500).json({ success: false, message: 'Failed to delete department member', error: error.message });
+  }
+});
+
+// Dedicated endpoint to remove a department member's stage by member record ID
+router.delete('/department-members/stage/:memberId', requireRole('admin'), async (req, res) => {
+  const { memberId } = req.params;
+  try {
+    // Fetch the department member record
+    const { data: member, error: memberError } = await supabase
+      .from('department_members')
+      .select('id, department_head_id, stage')
+      .eq('id', memberId)
+      .single();
+    if (memberError || !member) {
+      return res.status(404).json({ success: false, message: 'Department member not found.' });
+    }
+    // Delete from department_head_stages (if exists)
+    const { error: dhsError } = await supabase
+      .from('department_head_stages')
+      .delete()
+      .eq('department_head_id', member.department_head_id)
+      .eq('stage', member.stage);
+    if (dhsError) {
+      return res.status(500).json({ success: false, message: 'Failed to delete from department_head_stages', error: dhsError.message });
+    }
+    // Delete from department_members
+    const { error: dmError } = await supabase
+      .from('department_members')
+      .delete()
+      .eq('id', memberId);
+    if (dmError) {
+      return res.status(500).json({ success: false, message: 'Failed to delete from department_members', error: dmError.message });
+    }
+    res.json({ success: true, message: 'Department member stage removed.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to remove department member stage', error: error.message });
   }
 });
 
@@ -280,6 +338,38 @@ router.post('/department-heads/:id/stages', authenticateToken, async (req, res) 
   const { id } = req.params;
   const { stage } = req.body;
   try {
+    // Check user role
+    const { data: user, error: userError } = await db.supabase
+      .from('users')
+      .select('role')
+      .eq('id', id)
+      .single();
+    if (userError || !user) return res.status(400).json({ error: 'User not found.' });
+    // Department member: only one stage allowed
+    if (user.role === 'department_member') {
+      const { data: existingStages, error: stagesError } = await db.supabase
+        .from('department_head_stages')
+        .select('stage')
+        .eq('department_head_id', id);
+      if (stagesError) return res.status(500).json({ error: stagesError.message });
+      if (existingStages && existingStages.length > 0) {
+        return res.status(400).json({ error: 'A department member can only be assigned to one stage at a time.' });
+      }
+      // No need to check for duplicate stage assignment for department members
+    }
+    // Department head: check for duplicate stage assignment
+    if (user.role === 'department_head') {
+      // Check if stage is already assigned
+      const { data: existing, error: stageCheckError } = await db.supabase
+        .from('department_head_stages')
+        .select('department_head_id')
+        .eq('stage', stage)
+        .single();
+      if (stageCheckError && stageCheckError.code !== 'PGRST116') return res.status(500).json({ error: stageCheckError.message });
+      if (existing && existing.department_head_id) {
+        return res.status(400).json({ error: `Stage '${stage}' is already assigned to another department head. Each stage can only have one department head.` });
+      }
+    }
     const { error } = await db.supabase
       .from('department_head_stages')
       .insert([{ department_head_id: id, stage }], { upsert: true });
@@ -290,16 +380,30 @@ router.post('/department-heads/:id/stages', authenticateToken, async (req, res) 
   }
 });
 
-// Remove a stage from a department head
+// Remove a stage from a department head or member
 router.delete('/department-heads/:id/stages/:stage', authenticateToken, async (req, res) => {
   const { id, stage } = req.params;
   try {
+    // Remove from department_head_stages
     const { error } = await db.supabase
       .from('department_head_stages')
       .delete()
       .eq('department_head_id', id)
       .eq('stage', stage);
     if (error) throw error;
+    // Also remove from department_members if user is a department member
+    const { data: user, error: userError } = await db.supabase
+      .from('users')
+      .select('role')
+      .eq('id', id)
+      .single();
+    if (!userError && user && user.role === 'department_member') {
+      await db.supabase
+        .from('department_members')
+        .delete()
+        .eq('id', id)
+        .eq('stage', stage);
+    }
     res.json({ message: 'Stage removed' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove stage' });
