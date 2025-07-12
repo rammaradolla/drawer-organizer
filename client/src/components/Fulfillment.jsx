@@ -69,6 +69,8 @@ const STATUS_COLORS = {
 function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, updateOrder }) {
   const [options, setOptions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [isAssigning, setIsAssigning] = React.useState(false);
+  const [lastTriedAssignee, setLastTriedAssignee] = React.useState(undefined);
 
   React.useEffect(() => {
     async function loadOptions() {
@@ -77,7 +79,9 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       const deptHead = departmentHeads.find(dh => dh.stage === stage);
       let members = await fetchDepartmentMembers(stage);
       let opts = [];
-      // Only include department head for the stage
+      // Always include Unassigned as the first option
+      opts.push({ id: '', name: 'Unassigned', email: '', role: 'unassigned' });
+      // Add department head if available
       if (deptHead) {
         opts.push({ id: deptHead.department_head_id || deptHead.id, name: deptHead.name || '[No Name]', email: deptHead.email || '[No Email]', role: 'department_head' });
       }
@@ -89,10 +93,22 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       const uniqueOpts = Array.from(new Map(opts.map(o => [o.id, o])).values());
       setOptions(uniqueOpts);
       setLoading(false);
-      // If the current assignee is not valid, auto-select department head
-      const validIds = uniqueOpts.map(o => o.id);
-      if (order.assignee && !validIds.includes(order.assignee.id) && deptHead) {
-        updateOrder(order.id, { assignee_id: deptHead.department_head_id || deptHead.id });
+
+      // Auto-populate logic with guard against infinite PATCH attempts
+      const currentAssigneeId = order.assignee?.id || '';
+      const isMemberAssigned = members && members.some(m => m.id === currentAssigneeId);
+      let desiredAssigneeId = '';
+      if (isMemberAssigned) {
+        desiredAssigneeId = currentAssigneeId;
+      } else if (deptHead) {
+        desiredAssigneeId = deptHead.department_head_id || deptHead.id;
+      }
+      // Only update if not already assigning, and not already tried this value
+      if (!isAssigning && currentAssigneeId !== desiredAssigneeId && lastTriedAssignee !== desiredAssigneeId) {
+        setIsAssigning(true);
+        setLastTriedAssignee(desiredAssigneeId);
+        updateOrder(order.id, { assignee_id: desiredAssigneeId })
+          .finally(() => setIsAssigning(false));
       }
     }
     loadOptions();
@@ -100,9 +116,9 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
   }, [order.granular_status, departmentHeads]);
 
   // Find the selected option for display
-  const selectedOption = options.find(opt => opt.id === order.assignee?.id);
+  const selectedOption = options.find(opt => opt.id === (order.assignee?.id || ''));
   const selectedLabel = selectedOption
-    ? `${selectedOption.name} (${selectedOption.email})`
+    ? `${selectedOption.name}${selectedOption.email ? ' (' + selectedOption.email + ')' : ''}`
     : 'Unassigned';
 
   return (
@@ -112,10 +128,9 @@ function AssigneeDropdown({ order, departmentHeads, fetchDepartmentMembers, upda
       onChange={e => updateOrder(order.id, { assignee_id: e.target.value })}
       disabled={loading}
     >
-      <option value="">Unassigned</option>
       {options.map(opt => (
         <option key={opt.id} value={opt.id}>
-          {opt.name} ({opt.email}){opt.role === 'department_head' ? ' [Head]' : ''}
+          {opt.name}{opt.email ? ` (${opt.email})` : ''}{opt.role === 'department_head' ? ' [Head]' : ''}{opt.role === 'department_member' ? ' [Member]' : ''}
         </option>
       ))}
     </select>
@@ -209,13 +224,20 @@ export default function Fulfillment() {
   useEffect(() => {
     if (!user) return;
     fetchOrders();
+    // eslint-disable-next-line
+  }, [user, status, operationalStatus, assignee]);
+
+  // Only fetch department heads and operations users on mount or user change
+  useEffect(() => {
+    if (!user) return;
     fetchOperationsUsers();
     fetchDepartmentHeads();
-    // Optionally clear selected order, audit log, etc. if user changes
-    setSelectedOrder(null);
-    setAuditedOrderId(null);
-    setAuditLog([]);
     // eslint-disable-next-line
+  }, [user]);
+
+  // Add console logs to track dependency changes
+  useEffect(() => {
+    console.log('Fulfillment useEffect triggered:', { user, status, operationalStatus, assignee });
   }, [user, status, operationalStatus, assignee]);
 
   async function fetchOperationsUsers() {

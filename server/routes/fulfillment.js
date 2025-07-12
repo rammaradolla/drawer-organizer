@@ -302,21 +302,25 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (granular_status) {
       updateData.granular_status = granular_status;
       updateData.status = getCustomerFacingStatus(granular_status);
-      // Find department head for the new stage using the new department_head_stages join table
-      const { data: stageAssignment } = await supabase
-        .from('department_head_stages')
-        .select('department_head_id')
-        .eq('stage', granular_status)
-        .single();
-      
-      if (stageAssignment && stageAssignment.department_head_id) {
-        updateData.assignee_id = stageAssignment.department_head_id;
-        updateData.current_department_head_id = stageAssignment.department_head_id; // <-- Set current_department_head_id
+      // --- ENFORCE ASSIGNEE LOGIC ---
+      // 1. If a department member is already assigned, keep them as assignee
+      // 2. Else, if department head exists for the stage, assign department head
+      // 3. Else, set assignee_id to null (unassigned)
+      let newAssigneeId = null;
+      if (oldOrder.current_department_member_id) {
+        newAssigneeId = oldOrder.current_department_member_id;
       } else {
-        updateData.assignee_id = null;
-        updateData.current_department_head_id = null; // <-- Clear if not found
-        console.warn('No department head found for stage:', granular_status);
+        const { data: stageAssignment } = await supabase
+          .from('department_head_stages')
+          .select('department_head_id')
+          .eq('stage', granular_status)
+          .single();
+        if (stageAssignment && stageAssignment.department_head_id) {
+          newAssigneeId = stageAssignment.department_head_id;
+        }
       }
+      updateData.assignee_id = newAssigneeId;
+      updateData.current_department_head_id = newAssigneeId && !oldOrder.current_department_member_id ? newAssigneeId : null;
       updateData.task_status = 'in-progress'; // Reset task status for new stage
       updateData.assigned_at = new Date().toISOString();
     }
@@ -342,7 +346,7 @@ router.patch('/orders/:orderId', async (req, res) => {
       // Use the most up-to-date stage_assignees (from update or old order)
       let currentStageAssignees = stage_assignees !== undefined ? stage_assignees : (oldOrder.stage_assignees || {});
 
-      // If moving to a new stage and next stage's assignee is not set, auto-assign it to department head
+      // If moving to a new stage and next stage's assignee is not set, try to auto-assign to department head if exists
       if (prevStageIdx >= 0 && newStageIdx > prevStageIdx) {
         if (!currentStageAssignees[nextStage]) {
           // Fetch department head for the next stage using the new department_head_stages join table
@@ -353,6 +357,8 @@ router.patch('/orders/:orderId', async (req, res) => {
             .single();
           if (stageAssignment && stageAssignment.department_head_id) {
             currentStageAssignees[nextStage] = stageAssignment.department_head_id;
+          } else {
+            currentStageAssignees[nextStage] = null; // Explicitly set as unassigned
           }
         }
       }
