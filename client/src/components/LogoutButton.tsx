@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { clearCart } from '../redux/cartSlice';
 import { signOut } from '../utils/auth';
+import { supabase } from '../utils/supabaseClient';
 
 const LogoutButton: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -10,18 +11,20 @@ const LogoutButton: React.FC = () => {
   const handleLogout = async () => {
     setLoading(true);
     try {
-      await signOut();
+      await supabase.auth.signOut();
       // Clear the cart when user signs out
       dispatch(clearCart());
       // Clear checkout completion flag
       sessionStorage.removeItem('justCompletedCheckout');
       console.log('Cart cleared on logout');
     } catch (e) {
-      console.error('Logout failed:', e);
-      alert('Logout failed.');
-    } finally {
-      setLoading(false);
+      // If session is missing or logout fails, just clear local state and redirect
+      localStorage.clear();
+      window.location.href = '/login';
+      return;
     }
+    localStorage.clear();
+    window.location.href = '/login';
   };
 
   return (
