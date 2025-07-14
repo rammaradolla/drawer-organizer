@@ -426,6 +426,21 @@ const CameraPositionDisplay = ({ camera }) => {
   );
 };
 
+// Add or import the formatInches32 function from DrawerSetup
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
+function formatInches32(value) {
+  const inches = Math.floor(value);
+  let fraction = Math.round((value - inches) * 32);
+  if (fraction === 0) return `${inches}"`;
+  // Reduce fraction
+  const divisor = gcd(fraction, 32);
+  const num = fraction / divisor;
+  const denom = 32 / divisor;
+  return `${inches} ${num}/${denom}\"`;
+}
+
 // Main wrapper component
 const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, woodTypes, threeRenderer }) => {
   const [threeJS, setThreeJS] = useState(null);

@@ -57,8 +57,9 @@ console.log('Number of textures:', availableTextures.length);
 
 // Three.js components moved to isolated ThreeJSWrapper.jsx to prevent reconciler conflicts
 
+// Set grid size to 1/32 inch in pixels
 const PIXELS_PER_INCH = 10; // Each inch is 10 pixels
-const GRID_SIZE = 0.25 * PIXELS_PER_INCH; // Grid size is 0.25 inches
+const GRID_SIZE = (1 / 32) * PIXELS_PER_INCH; // Grid size is 1/32 inch
 const PADDING = 40; // Padding around the canvas
 const MIN_SIZE = 0.5 * PIXELS_PER_INCH; // Minimum size is 0.5 inches
 const DIVIDER_THICKNESS_INCHES = 0.5;
@@ -564,6 +565,21 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
   // Convert pixels to inches for display
   const pixelsToInches = (pixels) => (pixels / PIXELS_PER_INCH).toFixed(2);
 
+  // Add or import the formatInches32 function from DrawerSetup
+  function gcd(a, b) {
+    return b === 0 ? a : gcd(b, a % b);
+  }
+  function formatInches32(value) {
+    const inches = Math.floor(value);
+    let fraction = Math.round((value - inches) * 32);
+    if (fraction === 0) return `${inches}"`;
+    // Reduce fraction
+    const divisor = gcd(fraction, 32);
+    const num = fraction / divisor;
+    const denom = 32 / divisor;
+    return `${inches} ${num}/${denom}\"`;
+  }
+
   useImperativeHandle(ref, () => ({
     initializeCanvas,
     handleClear
@@ -745,7 +761,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                               <Text
                                 x={block.x + block.width / 2}
                                 y={block.y + block.height / 2}
-                                text={`W: ${internalWidth.toFixed(2)}\"\nD: ${internalDepth.toFixed(2)}\"`}
+                                text={`W: ${formatInches32(internalWidth)}\nD: ${formatInches32(internalDepth)}`}
                                 fontSize={8}
                                 fill="#333"
                                 align="center"
@@ -830,7 +846,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 
                 <div className="text-xs text-slate-600 mt-3 space-y-2">
                   <div className="flex justify-between">
-                    <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
+                    <span>Dimensions: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)}</span>
                     <span>Scale: {Math.round(scale * 100)}%</span>
                   </div>
                   <div>
