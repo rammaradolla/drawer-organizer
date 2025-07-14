@@ -211,6 +211,9 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
   const threeRenderer = useRef(); // Add this ref for 3D renderer
   const defaultDesignState = { blocks: [], splitLines: [] };
 
+  // Add state for selected split line
+  const [selectedSplitLineId, setSelectedSplitLineId] = useState(null);
+
   // Convert drawer dimensions from inches to pixels
   const baseWidth = dimensions.width * PIXELS_PER_INCH;
   const baseHeight = dimensions.depth * PIXELS_PER_INCH;
@@ -311,6 +314,75 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [historyIndex, history]);
 
+  // Helper to check if a split line is only connected at the boundary
+  function isSplitLineMovable(line, splitLines, dimensions) {
+    if (line.isHorizontal) {
+      // Row: check for vertical columns intersecting this row, not at left/right boundary
+      return !splitLines.some(col => {
+        if (col.isHorizontal) return false;
+        // Check if vertical line crosses this row
+        const x = col.x1;
+        const y = line.y1;
+        // Only block if intersection is not at left (0) or right (drawer width)
+        if (Math.abs(y - col.y1) < 1e-2 || Math.abs(y - col.y2) < 1e-2) return false; // at top/bottom of column
+        if (Math.abs(x) < 1e-2 || Math.abs(x - dimensions.width * PIXELS_PER_INCH) < 1e-2) return false; // at left/right boundary
+        // Check if this row crosses the column
+        return x > line.x1 + 1e-2 && x < line.x2 - 1e-2 && y > col.y1 + 1e-2 && y < col.y2 - 1e-2;
+      });
+    } else {
+      // Column: check for horizontal rows intersecting this column, not at top/bottom boundary
+      return !splitLines.some(row => {
+        if (!row.isHorizontal) return false;
+        const x = line.x1;
+        const y = row.y1;
+        // Only block if intersection is not at top (0) or bottom (drawer depth)
+        if (Math.abs(x - row.x1) < 1e-2 || Math.abs(x - row.x2) < 1e-2) return false; // at left/right of row
+        if (Math.abs(y) < 1e-2 || Math.abs(y - dimensions.depth * PIXELS_PER_INCH) < 1e-2) return false; // at top/bottom boundary
+        // Check if this column crosses the row
+        return y > line.y1 + 1e-2 && y < line.y2 - 1e-2 && x > row.x1 + 1e-2 && x < row.x2 - 1e-2;
+      });
+    }
+  }
+
+  // Keyboard arrow support for moving selected split line
+  useEffect(() => {
+    if (!selectedSplitLineId) return;
+    const handleArrowKey = (e) => {
+      const line = splitLines.find(l => l.id === selectedSplitLineId);
+      if (!line) return;
+      const isMovable = isSplitLineMovable(line, splitLines, dimensions);
+      if (!isMovable) return;
+      let moved = false;
+      let newX = null, newY = null;
+      if (!line.isHorizontal) {
+        // Vertical column
+        if (e.key === 'ArrowLeft') {
+          newX = line.x1 - GRID_SIZE;
+          moved = true;
+        } else if (e.key === 'ArrowRight') {
+          newX = line.x1 + GRID_SIZE;
+          moved = true;
+        }
+      } else {
+        // Horizontal row
+        if (e.key === 'ArrowUp') {
+          newY = line.y1 - GRID_SIZE;
+          moved = true;
+        } else if (e.key === 'ArrowDown') {
+          newY = line.y1 + GRID_SIZE;
+          moved = true;
+        }
+      }
+      if (moved) {
+        e.preventDefault();
+        const origPos = { x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2 };
+        updateBlocksAndLines(line, newX, newY, origPos);
+      }
+    };
+    window.addEventListener('keydown', handleArrowKey);
+    return () => window.removeEventListener('keydown', handleArrowKey);
+  }, [selectedSplitLineId, splitLines, dimensions]);
+
   const snapToGrid = (value) => {
     return Math.round(value / GRID_SIZE) * GRID_SIZE;
   };
@@ -384,16 +456,18 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
     setOriginalLinePosition(null);
   };
 
-  const updateBlocksAndLines = (splitLine, newX, newY) => {
+  // Update the function signature to accept originalLinePositionOverride
+  const updateBlocksAndLines = (splitLine, newX, newY, originalLinePositionOverride = null) => {
+    const origPos = originalLinePositionOverride || originalLinePosition;
     if (splitLine.isHorizontal && newY !== null) {
       // Find blocks that are specifically divided by this exact split line
       const affectedBlocks = findAffectedBlocks(splitLine);
-      const blocksAbove = affectedBlocks.filter(b => Math.abs(b.y + b.height - originalLinePosition.y1) < 1);
-      const blocksBelow = affectedBlocks.filter(b => Math.abs(b.y - originalLinePosition.y1) < 1);
+      const blocksAbove = affectedBlocks.filter(b => Math.abs(b.y + b.height - origPos.y1) < 1);
+      const blocksBelow = affectedBlocks.filter(b => Math.abs(b.y - origPos.y1) < 1);
       
       if (blocksAbove.length === 0 || blocksBelow.length === 0) return;
 
-      const deltaY = newY - originalLinePosition.y1;
+      const deltaY = newY - origPos.y1;
       
       // Check minimum sizes for affected blocks only
       const wouldBeTooSmallAbove = blocksAbove.some(b => (b.height + deltaY) < MIN_SIZE);
@@ -429,12 +503,12 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
     } else if (!splitLine.isHorizontal && newX !== null) {
       // Find blocks that are specifically divided by this exact split line
       const affectedBlocks = findAffectedBlocks(splitLine);
-      const blocksLeft = affectedBlocks.filter(b => Math.abs(b.x + b.width - originalLinePosition.x1) < 1);
-      const blocksRight = affectedBlocks.filter(b => Math.abs(b.x - originalLinePosition.x1) < 1);
+      const blocksLeft = affectedBlocks.filter(b => Math.abs(b.x + b.width - origPos.x1) < 1);
+      const blocksRight = affectedBlocks.filter(b => Math.abs(b.x - origPos.x1) < 1);
       
       if (blocksLeft.length === 0 || blocksRight.length === 0) return;
 
-      const deltaX = newX - originalLinePosition.x1;
+      const deltaX = newX - origPos.x1;
       
       // Check minimum sizes for affected blocks only
       const wouldBeTooSmallLeft = blocksLeft.some(b => (b.width + deltaX) < MIN_SIZE);
@@ -779,20 +853,29 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                         {/* Draw split lines */}
                         {splitLines.map((line) => {
                           const isDragging = draggedLine?.id === line.id;
-                          
+                          const isSelectedSplitLine = selectedSplitLineId === line.id;
+                          const isMovable = isSplitLineMovable(line, splitLines, dimensions);
                           return (
                             <Line
                               key={line.id}
                               x={line.isHorizontal ? line.x1 : line.x1}
                               y={line.isHorizontal ? line.y1 : line.y1}
                               points={line.isHorizontal ? [0, 0, line.x2 - line.x1, 0] : [0, 0, 0, line.y2 - line.y1]}
-                              stroke={isDragging ? "#1E40AF" : "#2563EB"}
-                              strokeWidth={isDragging ? 6 : 4}
-                              draggable
+                              stroke={
+                                isSelectedSplitLine
+                                  ? (isMovable ? '#22c55e' : '#f59e42') // green if movable, orange if not
+                                  : isDragging
+                                  ? '#1E40AF'
+                                  : '#2563EB'
+                              }
+                              strokeWidth={isDragging || isSelectedSplitLine ? 6 : 4}
+                              draggable={isMovable}
                               perfectDrawEnabled={false}
-                              onDragStart={(e) => handleSplitLineDragStart(e, line)}
-                              onDragEnd={(e) => handleSplitLineDragEnd(e, line)}
-                              dragBoundFunc={(pos) => {
+                              onDragStart={isMovable ? (e) => handleSplitLineDragStart(e, line) : undefined}
+                              onDragEnd={isMovable ? (e) => handleSplitLineDragEnd(e, line) : undefined}
+                              onDblClick={() => setSelectedSplitLineId(isSelectedSplitLine ? null : line.id)}
+                              onDblTap={() => setSelectedSplitLineId(isSelectedSplitLine ? null : line.id)}
+                              dragBoundFunc={isMovable ? (pos) => {
                                 const snappedX = snapToGrid(pos.x);
                                 const snappedY = snapToGrid(pos.y);
                                 
@@ -835,7 +918,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                                   const constrainedX = Math.max(minX, Math.min(maxX, snappedX));
                                   return { x: constrainedX, y: line.y1 };
                                 }
-                              }}
+                              } : undefined}
                             />
                           );
                         })}
