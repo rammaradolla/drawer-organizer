@@ -214,9 +214,17 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
   // Add state for selected split line
   const [selectedSplitLineId, setSelectedSplitLineId] = useState(null);
 
-  // Convert drawer dimensions from inches to pixels
-  const baseWidth = dimensions.width * PIXELS_PER_INCH;
-  const baseHeight = dimensions.depth * PIXELS_PER_INCH;
+  // Manufacturing tolerance: 1/16 inch (0.0625") reduction on width and depth
+  const MANUFACTURING_TOLERANCE = 1/16; // 0.0625 inches
+  const manufacturingDimensions = {
+    width: Math.max(0, dimensions.width - MANUFACTURING_TOLERANCE),
+    depth: Math.max(0, dimensions.depth - MANUFACTURING_TOLERANCE),
+    height: dimensions.height // Height unchanged
+  };
+
+  // Convert manufacturing dimensions from inches to pixels for canvas
+  const baseWidth = manufacturingDimensions.width * PIXELS_PER_INCH;
+  const baseHeight = manufacturingDimensions.depth * PIXELS_PER_INCH;
 
   // Save current state to history
   const saveToHistory = (newBlocks, newSplitLines) => {
@@ -269,8 +277,11 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
   }, [baseWidth, baseHeight]);
 
   const initializeCanvas = () => {
-    const baseWidth = dimensions.width * PIXELS_PER_INCH;
-    const baseHeight = dimensions.depth * PIXELS_PER_INCH;
+    // Use manufacturing dimensions (with tolerance applied)
+    const manufacturingWidth = Math.max(0, dimensions.width - MANUFACTURING_TOLERANCE);
+    const manufacturingDepth = Math.max(0, dimensions.depth - MANUFACTURING_TOLERANCE);
+    const baseWidth = manufacturingWidth * PIXELS_PER_INCH;
+    const baseHeight = manufacturingDepth * PIXELS_PER_INCH;
     const initialBlocks = [{
       id: 'initial',
       x: 0,
@@ -325,7 +336,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
         const y = line.y1;
         // Only block if intersection is not at left (0) or right (drawer width)
         if (Math.abs(y - col.y1) < 1e-2 || Math.abs(y - col.y2) < 1e-2) return false; // at top/bottom of column
-        if (Math.abs(x) < 1e-2 || Math.abs(x - dimensions.width * PIXELS_PER_INCH) < 1e-2) return false; // at left/right boundary
+                        if (Math.abs(x) < 1e-2 || Math.abs(x - manufacturingDimensions.width * PIXELS_PER_INCH) < 1e-2) return false; // at left/right boundary
         // Check if this row crosses the column
         return x > line.x1 + 1e-2 && x < line.x2 - 1e-2 && y > col.y1 + 1e-2 && y < col.y2 - 1e-2;
       });
@@ -337,7 +348,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
         const y = row.y1;
         // Only block if intersection is not at top (0) or bottom (drawer depth)
         if (Math.abs(x - row.x1) < 1e-2 || Math.abs(x - row.x2) < 1e-2) return false; // at left/right of row
-        if (Math.abs(y) < 1e-2 || Math.abs(y - dimensions.depth * PIXELS_PER_INCH) < 1e-2) return false; // at top/bottom boundary
+                        if (Math.abs(y) < 1e-2 || Math.abs(y - manufacturingDimensions.depth * PIXELS_PER_INCH) < 1e-2) return false; // at top/bottom boundary
         // Check if this column crosses the row
         return y > line.y1 + 1e-2 && y < line.y2 - 1e-2 && x > row.x1 + 1e-2 && x < row.x2 - 1e-2;
       });
@@ -805,8 +816,9 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                           const blockTop = block.y / PIXELS_PER_INCH;
                           const blockRight = (block.x + block.width) / PIXELS_PER_INCH;
                           const blockBottom = (block.y + block.height) / PIXELS_PER_INCH;
-                          const drawerRight = dimensions.width;
-                          const drawerBottom = dimensions.depth;
+                          // Use manufacturing dimensions for boundary checks
+                          const drawerRight = manufacturingDimensions.width;
+                          const drawerBottom = manufacturingDimensions.depth;
                           // Subtract divider thickness if not at the edge
                           let internalWidth = block.width / PIXELS_PER_INCH;
                           let internalDepth = block.height / PIXELS_PER_INCH;
@@ -929,7 +941,10 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 
                 <div className="text-xs text-slate-600 mt-3 space-y-2">
                   <div className="flex justify-between">
-                    <span>Dimensions: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)}</span>
+                    <span>
+                      <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
+                      <span className="text-slate-500 ml-2">(Ordered: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)})</span>
+                    </span>
                     <span>Scale: {Math.round(scale * 100)}%</span>
                   </div>
                   <div>
@@ -957,7 +972,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
               
               <ThreeJSWrapper 
                 selectedWoodType={selectedWoodType}
-                dimensions={dimensions}
+                dimensions={manufacturingDimensions}
                 blocks={blocks}
                 splitLines={splitLines}
                 woodTypes={availableTextures}
@@ -966,7 +981,10 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
               
               <div className="text-xs text-slate-600 mt-3 space-y-1">
                 <div className="flex justify-between">
-                  <span>Dimensions: {dimensions.width}" × {dimensions.depth}" × {dimensions.height}"</span>
+                  <span>
+                    <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
+                    <span className="text-slate-500 ml-2">(Ordered: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)})</span>
+                  </span>
                   <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
                 </div>
                 <div className="text-slate-500 text-center">

@@ -1,5 +1,5 @@
 export function createCartItem({ dimensions, layout, image2D, image3D, createdAt, customerNotes, drawerPhotoUrl, designId }) {
-  // Calculate main area in square inches (1 square inch = $1)
+  // Calculate main area in square inches (1 square inch = $0.1)
   const mainArea = Math.round((dimensions.width || 0) * (dimensions.depth || 0));
 
   // Calculate total divider area (sum of length * height for each divider)
@@ -14,7 +14,7 @@ export function createCartItem({ dimensions, layout, image2D, image3D, createdAt
   }
 
   const totalArea = mainArea + dividerArea;
-  const price = totalArea; // $1 per square inch
+  const price = totalArea * 0.15; // $0.15 per square inch
 
   // Debug log
   console.log('mainArea:', mainArea, 'dividerArea:', dividerArea, 'totalArea:', totalArea, 'price:', price);

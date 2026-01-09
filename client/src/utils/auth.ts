@@ -47,10 +47,10 @@ export async function getSupabaseUser(): Promise<SupabaseUser | null> {
   const baseUser = getCurrentUser(session);
   if (!baseUser) return null;
 
-  // Fetch user row from users table to get role and name
+  // Fetch user row from users table to get role, name, and profile data
   const { data: dbUser, error } = await supabase
     .from('users')
-    .select('id, email, name, role')
+    .select('id, email, name, role, profile_complete, billing_street, billing_city, billing_state, billing_zip, billing_country, billing_phone, shipping_street, shipping_city, shipping_state, shipping_zip, shipping_country, shipping_phone')
     .eq('email', baseUser.email)
     .single();
 
@@ -62,6 +62,19 @@ export async function getSupabaseUser(): Promise<SupabaseUser | null> {
     ...baseUser,
     name: dbUser.name || baseUser.name,
     role: dbUser.role || null,
+    profile_complete: dbUser.profile_complete || false,
+    billing_street: dbUser.billing_street,
+    billing_city: dbUser.billing_city,
+    billing_state: dbUser.billing_state,
+    billing_zip: dbUser.billing_zip,
+    billing_country: dbUser.billing_country,
+    billing_phone: dbUser.billing_phone,
+    shipping_street: dbUser.shipping_street,
+    shipping_city: dbUser.shipping_city,
+    shipping_state: dbUser.shipping_state,
+    shipping_zip: dbUser.shipping_zip,
+    shipping_country: dbUser.shipping_country,
+    shipping_phone: dbUser.shipping_phone,
     access_token: session?.access_token || undefined
   };
 }

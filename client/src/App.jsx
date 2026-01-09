@@ -17,6 +17,8 @@ import MyOrders from './components/MyOrders';
 import Fulfillment from './components/Fulfillment';
 import { CheckoutSuccess } from './components/CheckoutSuccess';
 import AdminDashboard from './components/AdminDashboard';
+import ProfileSetup from './components/ProfileSetup';
+import ProfileSettings from './components/ProfileSettings';
 import { supabase } from './utils/supabaseClient';
 import { startImpersonation, stopImpersonation } from './utils/auth';
 
@@ -127,51 +129,40 @@ function App() {
     }
   }, [user, dispatch]);
 
-  // Redirect operations users to fulfillment dashboard
+  // Consolidated redirect logic for non-customer users - runs early to prevent welcome page flash
   React.useEffect(() => {
-    if (user && user.role === 'operations' && location.pathname === '/') {
-      console.log('Operations user detected, redirecting to fulfillment');
-      navigate('/fulfillment', { replace: true });
+    if (loading) return; // Wait for user to load
+    
+    // If no user, don't redirect
+    if (!user) return;
+    
+    // Skip redirects for profile, checkout routes
+    if (location.pathname.startsWith('/profile') || 
+        location.pathname.startsWith('/checkout')) {
+      return;
     }
-  }, [user, location.pathname, navigate]);
-
-  // Redirect admin users to admin dashboard
-  React.useEffect(() => {
-    if (user && user.role === 'admin' && location.pathname === '/') {
-      console.log('Admin user detected, redirecting to admin dashboard');
-      navigate('/admin', { replace: true });
+    
+    // Redirect non-customer users from root path immediately
+    if (location.pathname === '/') {
+      if (user.role === 'admin') {
+        console.log('Admin user on root path, redirecting to /admin');
+        navigate('/admin', { replace: true });
+        return;
+      } else if (user.role === 'operations' || 
+                  user.role === 'department_head' || 
+                  user.role === 'department_member') {
+        console.log(`${user.role} user on root path, redirecting to /fulfillment`);
+        navigate('/fulfillment', { replace: true });
+        return;
+      }
     }
-  }, [user, location.pathname, navigate]);
-
-  // Prevent operations users from accessing the main designer page
-  React.useEffect(() => {
-    if (user && user.role === 'operations' && location.pathname === '/' && !loading) {
-      console.log('Operations user trying to access main page, redirecting to fulfillment');
+    
+    // Redirect operations users from orders page
+    if (user.role === 'operations' && location.pathname === '/orders') {
       navigate('/fulfillment', { replace: true });
+      return;
     }
   }, [user, location.pathname, loading, navigate]);
-
-  // Prevent operations users from accessing the orders page
-  React.useEffect(() => {
-    if (user && user.role === 'operations' && location.pathname === '/orders' && !loading) {
-      console.log('Operations user trying to access orders page, redirecting to fulfillment');
-      navigate('/fulfillment', { replace: true });
-    }
-  }, [user, location.pathname, loading, navigate]);
-
-  // Redirect department head users to fulfillment dashboard
-  React.useEffect(() => {
-    if (user && user.role === 'department_head' && location.pathname === '/') {
-      navigate('/fulfillment', { replace: true });
-    }
-  }, [user, location.pathname, navigate]);
-
-  // Redirect department member users to fulfillment dashboard
-  React.useEffect(() => {
-    if (user && user.role === 'department_member' && location.pathname === '/') {
-      navigate('/fulfillment', { replace: true });
-    }
-  }, [user, location.pathname, navigate]);
 
   // Update page title based on user role and current page
   React.useEffect(() => {
@@ -249,6 +240,11 @@ function App() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      // Manufacturing tolerance: reduce width and depth by 1/16 inch (0.0625") for proper fit inside drawer box
+      const TOLERANCE = 1/16; // 0.0625 inches
+      const manufacturingWidth = Math.max(0, dimensions.width - TOLERANCE);
+      const manufacturingDepth = Math.max(0, dimensions.depth - TOLERANCE);
+      
       const response = await fetch('http://localhost:3000/api/design/export', {
         method: 'POST',
         headers: {
@@ -256,9 +252,11 @@ function App() {
         },
         body: JSON.stringify({
           design: {
-            width: dimensions.width,
-            depth: dimensions.depth,
+            width: manufacturingWidth,
+            depth: manufacturingDepth,
             height: dimensions.height,
+            originalWidth: dimensions.width, // Keep original for reference
+            originalDepth: dimensions.depth, // Keep original for reference
             compartments: compartments.map(comp => ({
               ...comp,
               // Convert pixels to inches
@@ -320,33 +318,47 @@ function App() {
   const totalPrice = cart.reduce((sum, item) => sum + (item.price || 0), 0);
 
   console.log('Current user context:', user);
-  // Redirect based on impersonated user role
+  
+  // Route guards and redirects
   React.useEffect(() => {
     if (!user || loading) return;
-    // Admin route guard
+    
+    // Allow access to profile routes
+    if (location.pathname.startsWith('/profile')) {
+      return;
+    }
+    
+    // Redirect customers with incomplete profiles to profile setup
+    if (user.role === 'customer' && !user.profile_complete && location.pathname !== '/profile/setup') {
+      // Allow access to cart and orders even with incomplete profile
+      if (location.pathname !== '/cart' && location.pathname !== '/orders' && !location.pathname.startsWith('/checkout')) {
+        navigate('/profile/setup', { replace: true });
+        return;
+      }
+    }
+    
+    // Route guards - prevent unauthorized access
     if (location.pathname.startsWith('/admin') && user.role !== 'admin') {
       if (user.role === 'customer') navigate('/', { replace: true });
-      else if (user.role === 'operations') navigate('/fulfillment', { replace: true });
-      else navigate('/', { replace: true });
+      else if (user.role === 'operations' || user.role === 'department_head' || user.role === 'department_member') {
+        navigate('/fulfillment', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
-    // Fulfillment route guard
-    if (location.pathname.startsWith('/fulfillment') && user.role !== 'operations' && user.role !== 'admin' && user.role !== 'department_head' && user.role !== 'department_member') {
-      navigate('/', { replace: true });
-    }
-    // Customer route guard (main page)
-    if (location.pathname === '/' && user.role !== 'customer') {
-      if (user.role === 'admin') navigate('/admin', { replace: true });
-      else if (user.role === 'operations') navigate('/fulfillment', { replace: true });
+    
+    if (location.pathname.startsWith('/fulfillment') && 
+        user.role !== 'operations' && 
+        user.role !== 'admin' && 
+        user.role !== 'department_head' && 
+        user.role !== 'department_member') {
+      if (user.role === 'customer') {
+        navigate('/', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     }
   }, [user, location.pathname, loading, navigate]);
-
-  // Add a useEffect to handle user context changes from impersonation to admin
-  React.useEffect(() => {
-    if (user && user.role === 'admin' && location.pathname !== '/admin' && location.pathname !== '/fulfillment' && !user.isImpersonating) {
-      navigate('/admin', { replace: true });
-    }
-    // eslint-disable-next-line
-  }, [user, location.pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
@@ -395,7 +407,10 @@ function App() {
             )}
             {/* Show My Orders link for customers only */}
             {(!user || user.role === 'customer') && (
-              <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+              <>
+                <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+                <Link to="/profile" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Profile</Link>
+              </>
             )}
             {/* Fulfillment link - only for operations users */}
             {user && user.role === 'operations' && (
@@ -502,10 +517,16 @@ function App() {
           <Route path="/fulfillment" element={<Fulfillment />} />
           <Route path="/checkout/success" element={<CheckoutSuccess />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/profile/setup" element={<ProfileSetup />} />
+          <Route path="/profile" element={<ProfileSettings />} />
           <Route path="*" element={
             <div className="flex flex-row w-full h-full">
-              {/* Main Editor - Show only for customers */}
-              {(!user || user.role === 'customer') ? (
+              {/* Show loading while user is loading or redirecting */}
+              {loading ? (
+                <div className="w-full flex items-center justify-center">
+                  <div className="text-center">Loading...</div>
+                </div>
+              ) : (!user || user.role === 'customer') ? (
                 <>
                   <div className="flex-[2_2_0%] min-w-0">
                     <CanvasEditor

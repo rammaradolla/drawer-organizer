@@ -231,7 +231,172 @@ const emailTemplates = {
         </div>
       </div>
     `
-  })
+  }),
+
+  orderConfirmation: (order, user, cartItems) => {
+    const orderDate = new Date(order.created_at).toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Format addresses
+    const formatAddress = (type) => {
+      const prefix = type === 'billing' ? 'billing' : 'shipping';
+      if (!order[`${prefix}_street`]) return 'Not provided';
+      return `
+        ${order[`${prefix}_street`]}<br>
+        ${order[`${prefix}_city`]}, ${order[`${prefix}_state`]} ${order[`${prefix}_zip`]}<br>
+        ${order[`${prefix}_country`] || 'US'}<br>
+        ${order[`${prefix}_phone`] ? `Phone: ${order[`${prefix}_phone`]}` : ''}
+      `;
+    };
+
+    // Generate items HTML
+    const itemsHtml = (cartItems || []).map((item, index) => {
+      const itemSubtotal = (item.price || 0) * (item.quantity || 1);
+      return `
+        <tr style="border-bottom: 1px solid #e0e0e0;">
+          <td style="padding: 15px; vertical-align: top;">
+            ${item.image2D || item.image3D ? `
+              <img src="${item.image2D || item.image3D}" 
+                   alt="Design" 
+                   style="max-width: 80px; max-height: 80px; border: 1px solid #ddd; border-radius: 4px;">
+            ` : '<div style="width: 80px; height: 80px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">No Image</div>'}
+          </td>
+          <td style="padding: 15px; vertical-align: top;">
+            <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${item.wood_type || 'Custom'} Drawer Organizer</div>
+            <div style="color: #666; font-size: 14px; margin-bottom: 3px;">
+              Dimensions: ${item.dimensions?.width || 'N/A'}&quot; × ${item.dimensions?.depth || 'N/A'}&quot; × ${item.dimensions?.height || 'N/A'}&quot;
+            </div>
+            <div style="color: #666; font-size: 14px;">Quantity: ${item.quantity || 1}</div>
+          </td>
+          <td style="padding: 15px; vertical-align: top; text-align: right;">
+            <div style="font-weight: bold; color: #333;">$${(item.price || 0).toFixed(2)}</div>
+            <div style="color: #666; font-size: 14px;">Subtotal: $${itemSubtotal.toFixed(2)}</div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return {
+      subject: `Order Confirmation - Order #${order.id.slice(0, 8)}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; color: white;">
+            <h1 style="color: white; margin: 0; font-size: 28px;">Drawer Organizer</h1>
+            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px;">Order Confirmation</p>
+            <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; display: inline-block;">
+              <span style="font-size: 14px; opacity: 0.9;">Order #</span>
+              <span style="font-size: 24px; font-weight: bold;">${order.id.slice(0, 8).toUpperCase()}</span>
+            </div>
+          </div>
+          
+          <!-- Main Content -->
+          <div style="padding: 30px 20px;">
+            <!-- Greeting -->
+            <h2 style="color: #333; margin-bottom: 10px;">Thank you for your order, ${user.name || user.email}!</h2>
+            <p style="color: #555; line-height: 1.6; margin-bottom: 25px;">
+              We've received your order and payment has been confirmed. Your custom drawer organizer is now being prepared for production.
+            </p>
+            
+            <!-- Order Summary Box -->
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #28a745;">
+              <h3 style="color: #333; margin-top: 0; margin-bottom: 15px;">Order Summary</h3>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: #666;">Order Date:</span>
+                <span style="color: #333; font-weight: bold;">${orderDate}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: #666;">Payment Status:</span>
+                <span style="color: #28a745; font-weight: bold;">✓ Confirmed</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 2px solid #ddd;">
+                <span style="color: #333; font-size: 18px; font-weight: bold;">Order Total:</span>
+                <span style="color: #333; font-size: 24px; font-weight: bold;">$${order.total_price?.toFixed(2) || '0.00'}</span>
+              </div>
+            </div>
+            
+            <!-- Items Section -->
+            <h3 style="color: #333; margin-top: 30px; margin-bottom: 15px;">Ordered Items</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+              <thead>
+                <tr style="background: #f8f9fa;">
+                  <th style="padding: 12px; text-align: left; font-weight: bold; color: #333; width: 100px;">Image</th>
+                  <th style="padding: 12px; text-align: left; font-weight: bold; color: #333;">Item Details</th>
+                  <th style="padding: 12px; text-align: right; font-weight: bold; color: #333;">Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHtml || '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #999;">No items found</td></tr>'}
+              </tbody>
+            </table>
+            
+            <!-- Addresses Section -->
+            <table style="width: 100%; margin: 30px 0; border-collapse: collapse;">
+              <tr>
+                <td style="width: 50%; padding-right: 10px; vertical-align: top;">
+                  <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #007bff;">
+                    <h3 style="color: #333; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Billing Address</h3>
+                    <div style="color: #666; font-size: 14px; line-height: 1.8;">
+                      ${formatAddress('billing')}
+                    </div>
+                  </div>
+                </td>
+                <td style="width: 50%; padding-left: 10px; vertical-align: top;">
+                  <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #28a745;">
+                    <h3 style="color: #333; margin-top: 0; margin-bottom: 10px; font-size: 16px;">Shipping Address</h3>
+                    <div style="color: #666; font-size: 14px; line-height: 1.8;">
+                      ${formatAddress('shipping')}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+            
+            <!-- Next Steps -->
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 30px 0; border-left: 4px solid #28a745;">
+              <h3 style="color: #333; margin-top: 0; margin-bottom: 10px;">What's Next?</h3>
+              <p style="color: #555; line-height: 1.6; margin: 0;">
+                Your order is now in production. You'll receive email updates as your order progresses through each stage. 
+                Estimated processing time: 7-14 business days. We'll notify you once your order ships with tracking information.
+              </p>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div style="margin: 30px 0; text-align: center;">
+              <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/orders" 
+                 style="background: #007bff; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin-right: 10px;">
+                View Your Orders
+              </a>
+              <a href="mailto:${process.env.EMAIL_USER || 'support@drawerorganizer.com'}?subject=Question about Order ${order.id.slice(0, 8)}" 
+                 style="background: #6c757d; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                Contact Support
+              </a>
+            </div>
+            
+            <!-- Support Info -->
+            <p style="color: #666; font-size: 14px; margin-top: 30px; text-align: center;">
+              If you have any questions about your order, please contact us at 
+              <a href="mailto:${process.env.EMAIL_USER || 'support@drawerorganizer.com'}" style="color: #007bff; text-decoration: none;">
+                ${process.env.EMAIL_USER || 'support@drawerorganizer.com'}
+              </a>
+            </p>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
+            <p style="margin: 5px 0;">© ${new Date().getFullYear()} Drawer Organizer. All rights reserved.</p>
+            <p style="margin: 5px 0;">This is an automated confirmation email. Please do not reply to this message.</p>
+          </div>
+        </div>
+      `
+    };
+  }
 };
 
 // Email notification functions
@@ -627,6 +792,88 @@ const emailService = {
       subject,
       html
     });
+  },
+
+  // Send order confirmation email to customer
+  async sendOrderConfirmation(orderId) {
+    try {
+      console.log(`[Order Confirmation Email] Starting email send for order ${orderId}`);
+      
+      // Fetch complete order data with user information
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          users!orders_user_id_fkey (
+            id,
+            email,
+            name
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) {
+        console.error(`[Order Confirmation Email] Error fetching order ${orderId}:`, orderError);
+        return false;
+      }
+
+      const user = order.users;
+      if (!user || !user.email) {
+        console.error(`[Order Confirmation Email] No user or email found for order ${orderId}. User:`, user);
+        return false;
+      }
+
+      console.log(`[Order Confirmation Email] Found user ${user.email} for order ${orderId}`);
+
+      // Parse cart items from cart_json
+      let cartItems = [];
+      try {
+        cartItems = Array.isArray(order.cart_json) ? order.cart_json : JSON.parse(order.cart_json || '[]');
+        console.log(`[Order Confirmation Email] Parsed ${cartItems.length} cart items for order ${orderId}`);
+      } catch (parseError) {
+        console.error(`[Order Confirmation Email] Error parsing cart_json for order ${orderId}:`, parseError);
+        cartItems = [];
+      }
+
+      // Get email template
+      const template = emailTemplates.orderConfirmation(order, user, cartItems);
+      console.log(`[Order Confirmation Email] Generated email template for order ${orderId}`);
+
+      // Validate email address
+      if (!user.email || !user.email.includes('@')) {
+        console.error(`[Order Confirmation Email] Invalid email address for order ${orderId}: ${user.email}`);
+        return false;
+      }
+
+      // Check if email service is configured
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error(`[Order Confirmation Email] Email service not configured. EMAIL_USER: ${!!process.env.EMAIL_USER}, EMAIL_PASS: ${!!process.env.EMAIL_PASS}`);
+        return false;
+      }
+
+      // Send email
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: user.email,
+        subject: template.subject,
+        html: template.html
+      };
+
+      console.log(`[Order Confirmation Email] Attempting to send email to ${user.email} for order ${orderId}`);
+      await transporter.sendMail(mailOptions);
+      console.log(`[Order Confirmation Email] Successfully sent confirmation email to ${user.email} for order ${orderId}`);
+      return true;
+    } catch (error) {
+      console.error(`[Order Confirmation Email] Error sending confirmation email for order ${orderId}:`, error);
+      console.error(`[Order Confirmation Email] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        code: error.code
+      });
+      // Don't throw - email failure shouldn't break order processing
+      return false;
+    }
   }
 };
 

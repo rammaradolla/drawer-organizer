@@ -30,6 +30,7 @@ app.use('/api/design', require('./routes/design'));
 app.use('/api/order', require('./routes/order'));
 app.use('/api/stripe', stripeRouter); // Use the router for other stripe routes
 app.use('/api/fulfillment', require('./routes/fulfillment'));
+app.use('/api/profile', require('./routes/profile'));
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 app.use('/api/test', require('./routes/test')); // Test route (remove in production)

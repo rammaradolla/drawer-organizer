@@ -57,6 +57,33 @@ export default function MyOrders() {
               <div>Placed: {new Date(order.created_at).toLocaleString()}</div>
               <div>Total: <span className="font-bold text-blue-700">${order.total_price?.toFixed(2)}</span></div>
             </div>
+            {/* Addresses */}
+            {(order.billing_street || order.shipping_street) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-gray-50 rounded">
+                <div>
+                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Billing Address</h4>
+                  <div className="text-xs text-gray-600">
+                    {order.billing_street && <div>{order.billing_street}</div>}
+                    {order.billing_city && order.billing_state && (
+                      <div>{order.billing_city}, {order.billing_state} {order.billing_zip}</div>
+                    )}
+                    {order.billing_country && <div>{order.billing_country}</div>}
+                    {order.billing_phone && <div className="mt-1">Phone: {order.billing_phone}</div>}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Shipping Address</h4>
+                  <div className="text-xs text-gray-600">
+                    {order.shipping_street && <div>{order.shipping_street}</div>}
+                    {order.shipping_city && order.shipping_state && (
+                      <div>{order.shipping_city}, {order.shipping_state} {order.shipping_zip}</div>
+                    )}
+                    {order.shipping_country && <div>{order.shipping_country}</div>}
+                    {order.shipping_phone && <div className="mt-1">Phone: {order.shipping_phone}</div>}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap gap-4 mt-2">
               {(order.cart_json || []).map((item, idx) => (
                 <div key={idx} className="flex flex-col items-center border rounded p-2 bg-slate-50 min-w-[120px]">

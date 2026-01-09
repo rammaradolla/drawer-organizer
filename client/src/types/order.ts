@@ -8,6 +8,11 @@ export interface Order {
   status: OrderStatus;
   stripe_checkout_id: string;
   created_at: string;
+  users?: {
+    id: string;
+    email: string;
+    name?: string;
+  };
 }
 
 export interface CartItem {

@@ -1,5 +1,6 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { createClient } = require('@supabase/supabase-js');
+const emailService = require('./emailService');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -12,12 +13,12 @@ const calculateTotalPrice = (cartItems) => {
   }, 0);
 };
 
-const createCheckoutSession = async (userId, cartItems) => {
+const createCheckoutSession = async (userId, cartItems, addresses = null) => {
   try {
     const totalPrice = calculateTotalPrice(cartItems);
     
-    // Create Stripe checkout session
-    const session = await stripe.checkout.sessions.create({
+    // Prepare Stripe checkout session options
+    const sessionOptions = {
       payment_method_types: ['card'],
       line_items: cartItems.map(item => {
         const unit_amount = Math.max(50, Math.round(Number(item.price) * 100)); // Minimum $0.50
@@ -40,7 +41,17 @@ const createCheckoutSession = async (userId, cartItems) => {
       metadata: {
         userId,
       },
-    });
+    };
+
+    // Add shipping address to Stripe if provided
+    if (addresses && addresses.shipping_street) {
+      sessionOptions.shipping_address_collection = {
+        allowed_countries: ['US', 'CA'], // Add more countries as needed
+      };
+    }
+
+    // Create Stripe checkout session
+    const session = await stripe.checkout.sessions.create(sessionOptions);
 
     // Determine the initial stage
     const initialStage = 'Awaiting Payment';
@@ -54,18 +65,37 @@ const createCheckoutSession = async (userId, cartItems) => {
     
     const assigneeId = stageAssignment ? stageAssignment.department_head_id : null;
 
+    // Prepare order data with addresses
+    const orderData = {
+      user_id: userId,
+      cart_json: cartItems,
+      total_price: totalPrice,
+      status: 'pending',
+      stripe_checkout_id: session.id,
+      assignee_id: assigneeId,
+      granular_status: initialStage,
+    };
+
+    // Add address fields if provided
+    if (addresses) {
+      orderData.billing_street = addresses.billing_street;
+      orderData.billing_city = addresses.billing_city;
+      orderData.billing_state = addresses.billing_state;
+      orderData.billing_zip = addresses.billing_zip;
+      orderData.billing_country = addresses.billing_country || 'US';
+      orderData.billing_phone = addresses.billing_phone;
+      orderData.shipping_street = addresses.shipping_street;
+      orderData.shipping_city = addresses.shipping_city;
+      orderData.shipping_state = addresses.shipping_state;
+      orderData.shipping_zip = addresses.shipping_zip;
+      orderData.shipping_country = addresses.shipping_country || 'US';
+      orderData.shipping_phone = addresses.shipping_phone;
+    }
+
     // Create order record in Supabase
     const { data: order, error } = await supabase
       .from('orders')
-      .insert({
-        user_id: userId,
-        cart_json: cartItems,
-        total_price: totalPrice,
-        status: 'pending',
-        stripe_checkout_id: session.id,
-        assignee_id: assigneeId,
-        granular_status: initialStage,
-      })
+      .insert(orderData)
       .select()
       .single();
 
@@ -168,6 +198,20 @@ const handleWebhook = async (event) => {
           });
         
         console.log(`[Stripe Webhook] Audit log created for order ${order.id}.`);
+
+        // Send order confirmation email to customer
+        try {
+          const emailSent = await emailService.sendOrderConfirmation(order.id);
+          if (emailSent) {
+            console.log(`[Stripe Webhook] Order confirmation email sent for order ${order.id}`);
+          } else {
+            console.warn(`[Stripe Webhook] Failed to send order confirmation email for order ${order.id}, but order processing continues`);
+          }
+        } catch (emailError) {
+          // Log error but don't fail webhook processing
+          console.error(`[Stripe Webhook] Error sending order confirmation email for order ${order.id}:`, emailError);
+          console.log(`[Stripe Webhook] Order processing continues despite email error`);
+        }
 
         break;
       }

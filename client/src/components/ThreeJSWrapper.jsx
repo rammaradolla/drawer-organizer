@@ -566,6 +566,7 @@ const ThreeJSWrapper = ({ selectedWoodType, dimensions, blocks, splitLines, wood
               enableRotate={true}
               minDistance={Math.max(dimensions.width, dimensions.depth) * 0.2}
               maxDistance={Math.max(dimensions.width, dimensions.depth) * 8}
+              // Note: dimensions here already includes tolerance adjustment from CanvasEditor
               maxPolarAngle={Math.PI / 1.8}
               autoRotate={false}
               dampingFactor={0.05}

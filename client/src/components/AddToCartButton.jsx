@@ -107,7 +107,6 @@ export default function AddToCartButton({
       });
       dispatch(addCartItem(cartItem));
       if (onReset) onReset();
-      alert('Design added to cart!');
     } catch (err) {
       alert('Failed to add to cart: ' + err.message);
     } finally {

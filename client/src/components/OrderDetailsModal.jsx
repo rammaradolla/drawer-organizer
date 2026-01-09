@@ -192,6 +192,30 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
                 </div>
               </div>
 
+              {/* Addresses */}
+              {(order.billing_street || order.shipping_street) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <h4 className="font-bold text-lg mb-2">Billing Address</h4>
+                    {order.billing_street && <DetailRow label="Street" value={order.billing_street} />}
+                    {order.billing_city && order.billing_state && (
+                      <DetailRow label="City, State, ZIP" value={`${order.billing_city}, ${order.billing_state} ${order.billing_zip || ''}`} />
+                    )}
+                    {order.billing_country && <DetailRow label="Country" value={order.billing_country} />}
+                    {order.billing_phone && <DetailRow label="Phone" value={order.billing_phone} />}
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg border">
+                    <h4 className="font-bold text-lg mb-2">Shipping Address</h4>
+                    {order.shipping_street && <DetailRow label="Street" value={order.shipping_street} />}
+                    {order.shipping_city && order.shipping_state && (
+                      <DetailRow label="City, State, ZIP" value={`${order.shipping_city}, ${order.shipping_state} ${order.shipping_zip || ''}`} />
+                    )}
+                    {order.shipping_country && <DetailRow label="Country" value={order.shipping_country} />}
+                    {order.shipping_phone && <DetailRow label="Phone" value={order.shipping_phone} />}
+                  </div>
+                </div>
+              )}
+
               {/* Cart Items */}
               <div>
                 <h4 className="font-bold text-lg mb-2">Items Ordered</h4>

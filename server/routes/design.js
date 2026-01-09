@@ -27,15 +27,20 @@ router.post('/export', async (req, res) => {
             .compartment { margin: 10px 0; padding: 10px; background: #f5f5f5; border-left: 3px solid #333; }
             h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 10px; }
             h2 { color: #666; margin-top: 30px; }
+            .tolerance-note { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 4px; }
           </style>
         </head>
         <body>
           <h1>Drawer Organizer Design</h1>
           <div class="design-container">
+            <div class="tolerance-note">
+              <strong>Manufacturing Note:</strong> Dimensions include a 1/16" (0.0625") tolerance reduction on width and depth to ensure proper fit inside the drawer box.
+              ${design.originalWidth ? `<br><strong>Customer-ordered dimensions:</strong> ${design.originalWidth}" × ${design.originalDepth}" × ${design.height}"` : ''}
+            </div>
             <div class="measurements">
-              <h2>Overall Dimensions</h2>
-              <p><strong>Width:</strong> ${design.width}"</p>
-              <p><strong>Depth:</strong> ${design.depth}"</p>
+              <h2>Manufacturing Dimensions (Cut Size)</h2>
+              <p><strong>Width:</strong> ${design.width.toFixed(4)}"</p>
+              <p><strong>Depth:</strong> ${design.depth.toFixed(4)}"</p>
               <p><strong>Height:</strong> ${design.height}"</p>
             </div>
             <h2>Compartments (${design.compartments.length} total)</h2>

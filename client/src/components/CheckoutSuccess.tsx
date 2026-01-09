@@ -29,7 +29,14 @@ export const CheckoutSuccess: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('orders')
-          .select('*')
+          .select(`
+            *,
+            users!orders_user_id_fkey (
+              id,
+              email,
+              name
+            )
+          `)
           .eq('stripe_checkout_id', sessionId)
           .single();
 
@@ -179,8 +186,31 @@ export const CheckoutSuccess: React.FC = () => {
                     ${order.total_price.toFixed(2)}
                   </dd>
                 </div>
+                {order.users && (
+                  <div className="py-4 flex justify-between">
+                    <dt className="text-sm font-medium text-gray-500">Confirmation Email Sent To</dt>
+                    <dd className="text-sm text-gray-900">{order.users.email || 'N/A'}</dd>
+                  </div>
+                )}
               </dl>
             </div>
+
+            {order.users && order.users.email && (
+              <div className="mt-6 bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-400 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm text-blue-700 font-medium">Order confirmation email sent</p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      A confirmation email has been sent to <strong>{order.users.email}</strong>. 
+                      Please check your inbox (and spam folder) for order details.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-8 flex justify-center space-x-4">
               <button

@@ -19,6 +19,19 @@ export type SupabaseUser = Pick<User, 'id' | 'email' | 'user_metadata'> & {
     role: string;
     email?: string;
   };
+  profile_complete?: boolean;
+  billing_street?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_zip?: string;
+  billing_country?: string;
+  billing_phone?: string;
+  shipping_street?: string;
+  shipping_city?: string;
+  shipping_state?: string;
+  shipping_zip?: string;
+  shipping_country?: string;
+  shipping_phone?: string;
 };
 
 export function getCurrentUser(session: Session | null): SupabaseUser | null {
