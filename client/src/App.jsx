@@ -28,7 +28,7 @@ const MATERIAL_MULTIPLIER = 1.5; // 50% markup for material and labor
 const DEFAULT_DIMENSIONS = {
   width: 30,
   depth: 20,
-  height: 3
+  height: 2.5
 };
 
 function App() {
@@ -177,7 +177,7 @@ function App() {
         return 'My Orders - Drawer Organizer';
       }
       // Default title for customers on the main page
-      return 'Drawer Organizer Designer';
+      return 'Design2Organize - Custom Drawer Inserts';
     };
     document.title = getTitle();
   }, [user, location.pathname]);
@@ -245,7 +245,7 @@ function App() {
       const manufacturingWidth = Math.max(0, dimensions.width - TOLERANCE);
       const manufacturingDepth = Math.max(0, dimensions.depth - TOLERANCE);
       
-      const response = await fetch('http://localhost:3000/api/design/export', {
+      const response = await fetch('/api/design/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -292,7 +292,7 @@ function App() {
   };
 
   const handleOrderSubmit = async (orderData) => {
-    const response = await fetch('http://localhost:3000/api/order/submit', {
+    const response = await fetch('/api/order/submit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -397,9 +397,12 @@ function App() {
       )}
       <div className="w-full px-4" style={{paddingTop: user && user.isImpersonating ? 72 : 0}}>
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Drawer Organizer Designer
-          </h1>
+          <img 
+            src="/images/design2organize-logo4.png" 
+            alt="Design2Organize - Custom Drawer Inserts to Organize" 
+            className="h-15 object-contain"
+            style={{ maxWidth: '400px' }}
+          />
           <div className="flex items-center gap-6">
             {/* Show Home link for customers only */}
             {(!user || user.role === 'customer') && (

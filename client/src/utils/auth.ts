@@ -2,8 +2,31 @@ import { supabase, SupabaseUser, getCurrentUser } from './supabaseClient';
 import { Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 export async function signInWithGoogle(): Promise<void> {
-  const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-  if (error) throw error;
+  // Use current origin for redirect URL - works for both localhost and network access
+  // Remove hash and query params to get clean base URL
+  const redirectUrl = typeof window !== 'undefined' 
+    ? `${window.location.protocol}//${window.location.host}${window.location.pathname}`
+    : 'http://localhost:5173';
+  
+  // Log the redirect URL for debugging
+  console.log('🔐 OAuth redirect URL:', redirectUrl);
+  console.log('🔐 Current origin:', window.location.origin);
+  
+  const { error } = await supabase.auth.signInWithOAuth({ 
+    provider: 'google',
+    options: {
+      redirectTo: redirectUrl,
+      queryParams: {
+        // Ensure redirect URL is passed correctly
+        redirect_to: redirectUrl
+      }
+    }
+  });
+  
+  if (error) {
+    console.error('❌ OAuth sign-in error:', error);
+    throw error;
+  }
 }
 
 export async function signOut(): Promise<void> {

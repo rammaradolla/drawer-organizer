@@ -1,12 +1,11 @@
 import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse } from '../types/order';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
+// Use relative URL to work with Vite proxy - works for both localhost and network access
 export const createCheckoutSession = async (
   request: CreateCheckoutSessionRequest
 ): Promise<CreateCheckoutSessionResponse> => {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/stripe/create-checkout-session`, {
+    const response = await fetch('/api/stripe/create-checkout-session', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

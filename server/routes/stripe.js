@@ -31,6 +31,11 @@ router.post('/create-checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request data' });
     }
 
+    // Extract client origin from request headers for dynamic redirect URLs
+    // Use Origin header (preferred) or Referer header as fallback
+    const clientOrigin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+    console.log('🔗 Client origin from request:', clientOrigin);
+
     // Validate addresses if provided
     if (addresses) {
       const { validateBillingAddress, validateShippingAddress } = require('../utils/addressValidation');
@@ -64,7 +69,7 @@ router.post('/create-checkout-session', async (req, res) => {
       }
     }
 
-    const result = await createCheckoutSession(userId, cartItems, addresses);
+    const result = await createCheckoutSession(userId, cartItems, addresses, clientOrigin);
     res.json(result);
   } catch (error) {
     console.error('Error in create-checkout-session:', error);

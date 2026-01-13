@@ -16,9 +16,11 @@ export default defineConfig({
       port: CLIENT_PORT,
     },
     // Proxy API requests to backend server
+    // Use environment variable for server URL, or default to localhost
+    // When accessed from other machines, set VITE_API_TARGET to your server IP
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: process.env.VITE_API_TARGET || 'http://localhost:3000',
         changeOrigin: true, // Recommended for virtual hosts
         secure: false, // Recommended for local development
       },

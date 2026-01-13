@@ -12,6 +12,7 @@
     "check-ports": "echo 'Client Port 5173:' && (lsof -i :5173 || echo 'Available') && echo 'Server Port 3000:' && (lsof -i :3000 || echo 'Available')",
     "kill-ports": "echo 'Killing processes on ports 5173 and 3000...' && (lsof -ti :5173 | xargs kill -9 2>/dev/null || echo 'No process on 5173') && (lsof -ti :3000 | xargs kill -9 2>/dev/null || echo 'No process on 3000')",
     "setup-ports": "npm run kill-ports && sleep 2 && npm run check-ports",
+    "get-ip": "echo 'Your local IP addresses:' && (ipconfig getifaddr en0 2>/dev/null && echo 'WiFi (en0):' && ipconfig getifaddr en0) || (ifconfig | grep 'inet ' | grep -v 127.0.0.1 | awk '{print $2}')",
     "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
     "start:server": "cd server && npm start",
     "start:client": "cd client && npm run dev"

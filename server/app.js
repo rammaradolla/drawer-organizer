@@ -12,11 +12,19 @@ const { router: stripeRouter, webhookHandler: stripeWebhookHandler } = require('
 const app = express();
 
 // Middleware - Using centralized port configuration
-app.use(cors({
-  origin: SERVER_CONFIG.CORS_ORIGINS,
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
-  credentials: true
-}));
+// Allow all origins if ALLOW_ALL_ORIGINS is set (for testing from other machines)
+const corsOptions = process.env.ALLOW_ALL_ORIGINS === 'true' 
+  ? {
+      origin: true, // Allow all origins
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+      credentials: true
+    }
+  : {
+      origin: SERVER_CONFIG.CORS_ORIGINS,
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
+      credentials: true
+    };
+app.use(cors(corsOptions));
 
 // Stripe webhook must be registered before express.json() to receive raw body
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
@@ -47,9 +55,15 @@ app.use((err, req, res, next) => {
 
 // Use centralized port configuration
 const PORT = SERVER_CONFIG.PORT;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// Listen on all network interfaces (0.0.0.0) to allow access from other machines
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running on ${HOST}:${PORT}`);
   console.log(`📱 Client running on port ${PORTS.CLIENT}`);
   console.log(`🔗 Accepting client requests from: ${SERVER_CONFIG.CLIENT_URL}`);
   console.log(`🌐 CORS origins:`, SERVER_CONFIG.CORS_ORIGINS);
+  if (HOST === '0.0.0.0') {
+    console.log(`🌍 Server is accessible from other machines on your network`);
+    console.log(`   Use your local IP address (e.g., http://192.168.x.x:${PORT}) to access from other devices`);
+  }
 }); 

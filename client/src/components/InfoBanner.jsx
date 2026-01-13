@@ -36,17 +36,18 @@ export default function InfoBanner() {
   return (
     <div
       style={{
-        width: "100%",
+        width: "calc(100% + 2rem)", // Full width accounting for parent padding (px-4 = 1rem on each side)
         height: 80,
-        background: "#fff",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        background: "#14b8a6", // Teal color matching logo
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 32,
-        borderRadius: 12,
-        margin: "16px 0",
-        padding: "0 24px",
+        gap: 20, // Reduced from 32 for better spacing
+        borderRadius: 0, // No rounded corners
+        margin: 0,
+        marginLeft: "-1rem", // Negative margin to break out of parent padding (1rem = 16px = px-4)
+        marginRight: "-1rem",
+        padding: "0 32px", // Increased from 24px for better edge spacing
         overflow: "hidden",
         position: "relative",
       }}
@@ -57,16 +58,16 @@ export default function InfoBanner() {
             transition: box-shadow 0.4s, background 0.4s;
           }
           .step-active {
-            box-shadow: 0 0 0 4px #e0eaff, 0 1px 4px rgba(0,0,0,0.04);
-            background: #f5faff;
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.25);
           }
           .arrow-animate {
             animation: arrowPulse 1.2s infinite;
           }
           @keyframes arrowPulse {
-            0% { color: #b0b8c1; transform: scale(1);}
-            50% { color: #3b82f6; transform: scale(1.25);}
-            100% { color: #b0b8c1; transform: scale(1);}
+            0% { color: rgba(255, 255, 255, 0.7); transform: scale(1);}
+            50% { color: #ffffff; transform: scale(1.25);}
+            100% { color: rgba(255, 255, 255, 0.7); transform: scale(1);}
           }
         `}
       </style>
@@ -76,8 +77,9 @@ export default function InfoBanner() {
           flexDirection: "column",
           alignItems: "flex-end",
           justifyContent: "center",
-          marginRight: 32,
-          minWidth: 220,
+          marginRight: 24, // Reduced from 32 for tighter spacing
+          minWidth: "auto",
+          flexShrink: 0,
         }}
       >
         <div
@@ -86,25 +88,24 @@ export default function InfoBanner() {
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "flex-end",
-            marginRight: 32,
-            minWidth: 260,
+            minWidth: "auto",
+            flexShrink: 0,
           }}
         >
           <span
             style={{
               fontWeight: 500,
               fontSize: 20,
-              color: "#2563eb",
+              color: "#ffffff", // White text for contrast on teal
               letterSpacing: 0.1,
               textAlign: "right",
               display: "flex",
               alignItems: "center",
               whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              flexShrink: 0,
             }}
           >
-            Your organizer, in 4 steps <span style={{ fontSize: 44, marginLeft: 14, display: "inline-flex", alignItems: "center" }}>👉</span>
+            Your organizer, in 4 steps <span style={{ fontSize: 44, marginLeft: 12, display: "inline-flex", alignItems: "center", flexShrink: 0 }}>👉</span>
           </span>
         </div>
       </div>
@@ -115,10 +116,10 @@ export default function InfoBanner() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 12,
-              minWidth: 180,
+              gap: 10, // Reduced from 12 for tighter spacing
+              minWidth: 160, // Reduced from 180 for more compact steps
               borderRadius: 8,
-              padding: "0 8px",
+              padding: "0 12px", // Increased from 8px for better internal spacing
             }}
           >
             <img
@@ -137,7 +138,7 @@ export default function InfoBanner() {
               style={{
                 fontWeight: 600,
                 fontSize: 18,
-                color: "#1a2233",
+                color: "#ffffff", // White text for contrast on teal
                 letterSpacing: 0.2,
               }}
             >
@@ -149,9 +150,10 @@ export default function InfoBanner() {
               className={`arrow-animate${activeStep === idx ? " arrow-animate" : ""}`}
               style={{
                 fontSize: 32,
-                margin: "0 8px",
+                margin: "0 12px", // Increased from 8px for better arrow spacing
                 userSelect: "none",
                 display: "inline-block",
+                color: "#ffffff", // White arrow for contrast
               }}
             >
               →

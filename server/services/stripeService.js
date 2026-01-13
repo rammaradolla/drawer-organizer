@@ -13,9 +13,13 @@ const calculateTotalPrice = (cartItems) => {
   }, 0);
 };
 
-const createCheckoutSession = async (userId, cartItems, addresses = null) => {
+const createCheckoutSession = async (userId, cartItems, addresses = null, clientOrigin = null) => {
   try {
     const totalPrice = calculateTotalPrice(cartItems);
+    
+    // Use client origin if provided, otherwise fall back to CLIENT_URL env var
+    const baseUrl = clientOrigin || process.env.CLIENT_URL || 'http://localhost:5173';
+    console.log('🔗 Stripe checkout using base URL:', baseUrl);
     
     // Prepare Stripe checkout session options
     const sessionOptions = {
@@ -36,8 +40,8 @@ const createCheckoutSession = async (userId, cartItems, addresses = null) => {
         };
       }),
       mode: 'payment',
-      success_url: `${process.env.CLIENT_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/cart`,
+      success_url: `${baseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/cart`,
       metadata: {
         userId,
       },
