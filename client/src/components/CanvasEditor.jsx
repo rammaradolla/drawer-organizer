@@ -672,14 +672,15 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
 
   return (
     <div className="flex flex-col w-full h-full">
-      {/* DrawerSetup at the top, managed by CanvasEditor */}
-      <div className="mb-4">
-        <div className="flex flex-row items-end gap-6 w-full">
+      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 px-4 pt-4" ref={containerRef}>
+        {/* Left Section: Dimensions Form, Manufacturing Tolerance, and Add to Cart */}
+        <div className="w-52 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
+          <h3 className="text-base font-semibold text-slate-900 mb-3">Drawer Dimensions</h3>
           <DrawerSetup
             dimensions={dimensions}
             onDimensionsSet={setDimensions}
           />
-          <div className="flex items-end ml-8">
+          <div className="mt-4">
             <AddToCartButton
               design2DRef={stageRef}
               threeRenderer={threeRenderer}
@@ -691,16 +692,14 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
               defaultDesignState={defaultDesignState}
               dimensions={dimensions}
               layout={{ blocks, splitLines, selectedWoodType }}
-              className="w-32 h-16 text-lg"
+              className="w-full py-3 text-base"
             />
           </div>
         </div>
-      </div>
-      <div className="flex flex-col w-full h-full min-h-screen overflow-hidden bg-slate-50" ref={containerRef}>
-        <div className="flex flex-row gap-6 w-full h-full flex-1 px-0 overflow-hidden">
-          {/* 2D Canvas */}
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+
+        {/* Middle Section: 2D Canvas */}
+        <div className="flex-[1.5] min-w-0 overflow-hidden">
+            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
               <div className="flex justify-between items-center mb-1.5">
                 <h3 className="text-base font-semibold text-slate-900">2D Design</h3>
               </div>
@@ -962,10 +961,10 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 </div>
               </div>
             </div>
-          </div>
+        </div>
 
-          {/* 3D Preview */}
-          <div className="flex-1 min-w-0 overflow-hidden">
+        {/* Right Section: 3D Preview */}
+        <div className="flex-1 min-w-0 overflow-hidden">
             <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col">
               <div className="flex justify-between items-center mb-1.5">
                 <h3 className="text-base font-semibold text-slate-900">3D Preview</h3>
@@ -998,7 +997,6 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>

@@ -146,13 +146,13 @@ function App() {
     if (location.pathname === '/') {
       if (user.role === 'admin') {
         console.log('Admin user on root path, redirecting to /admin');
-        navigate('/admin', { replace: true });
+      navigate('/admin', { replace: true });
         return;
       } else if (user.role === 'operations' || 
                   user.role === 'department_head' || 
                   user.role === 'department_member') {
         console.log(`${user.role} user on root path, redirecting to /fulfillment`);
-        navigate('/fulfillment', { replace: true });
+      navigate('/fulfillment', { replace: true });
         return;
       }
     }
@@ -344,7 +344,7 @@ function App() {
         navigate('/fulfillment', { replace: true });
       } else {
         navigate('/', { replace: true });
-      }
+    }
     }
     
     if (location.pathname.startsWith('/fulfillment') && 
@@ -355,8 +355,8 @@ function App() {
       if (user.role === 'customer') {
         navigate('/', { replace: true });
       } else {
-        navigate('/', { replace: true });
-      }
+      navigate('/', { replace: true });
+    }
     }
   }, [user, location.pathname, loading, navigate]);
 
@@ -411,7 +411,7 @@ function App() {
             {/* Show My Orders link for customers only */}
             {(!user || user.role === 'customer') && (
               <>
-                <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
+              <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
                 <Link to="/profile" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Profile</Link>
               </>
             )}
