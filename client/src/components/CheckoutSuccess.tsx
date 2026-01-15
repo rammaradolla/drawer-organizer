@@ -61,6 +61,61 @@ export const CheckoutSuccess: React.FC = () => {
         // Set flag to ensure cart stays cleared even after navigation
         sessionStorage.setItem('justCompletedCheckout', 'true');
 
+        // Fallback: Trigger email if webhook hasn't sent it yet
+        // Only trigger if order status is still 'pending' (webhook should have updated it)
+        // Also check if email was already sent via audit log
+        if (data.status === 'pending' && data.id) {
+          console.log('[CheckoutSuccess] Order status is still pending, waiting 3 seconds for webhook to process...');
+          
+          // Wait 3 seconds to give webhook time to process
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // Re-fetch order to check if status changed
+          const { data: updatedOrder } = await supabase
+            .from('orders')
+            .select('status')
+            .eq('id', data.id)
+            .single();
+          
+          // Check if confirmation email was already sent (via audit log)
+          const { data: emailLog } = await supabase
+            .from('order_audit_log')
+            .select('id')
+            .eq('order_id', data.id)
+            .eq('action', 'CONFIRMATION_EMAIL_SENT')
+            .limit(1)
+            .single();
+          
+          // Only trigger fallback if:
+          // 1. Status is STILL pending after waiting
+          // 2. AND email was NOT already sent (no audit log entry)
+          if (updatedOrder && updatedOrder.status === 'pending' && !emailLog) {
+            console.log('[CheckoutSuccess] Order status still pending and no email sent yet, triggering email as fallback...');
+            try {
+              const emailResponse = await fetch(`/api/stripe/test-order-email/${data.id}`, {
+                method: 'POST',
+              });
+              const emailResult = await emailResponse.json();
+              if (emailResult.email_sent) {
+                console.log('[CheckoutSuccess] ✅ Email sent successfully via fallback');
+              } else {
+                console.warn('[CheckoutSuccess] ⚠️ Email fallback failed:', emailResult.message);
+              }
+            } catch (emailError) {
+              console.error('[CheckoutSuccess] Error triggering email fallback:', emailError);
+              // Don't fail the page if email fails
+            }
+          } else {
+            if (emailLog) {
+              console.log('[CheckoutSuccess] Email already sent (found in audit log), skipping fallback');
+            } else {
+              console.log('[CheckoutSuccess] Order status changed to', updatedOrder?.status, '- webhook processed, email should have been sent');
+            }
+          }
+        } else {
+          console.log('[CheckoutSuccess] Order status is', data.status, '- email should have been sent by webhook');
+        }
+
         setShowConfirmation(true);
       } catch (err) {
         console.error('Error in fetchOrder:', err);

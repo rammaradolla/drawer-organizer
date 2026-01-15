@@ -41,7 +41,35 @@ app.use('/api/fulfillment', require('./routes/fulfillment'));
 app.use('/api/profile', require('./routes/profile'));
 const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
-app.use('/api/test', require('./routes/test')); // Test route (remove in production)
+
+// Only enable test routes in development
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api/test', require('./routes/test'));
+}
+
+// Serve static files from public directory (for images, logos, etc.)
+// This works for both development and production
+const publicPath = path.join(__dirname, '../client/public');
+app.use('/images', express.static(publicPath + '/images'));
+
+// Serve static files from React app in production
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../client/dist');
+  // Serve static files (JS, CSS, images, etc.)
+  app.use(express.static(clientBuildPath));
+  
+  // Handle React routing - return index.html for all non-API routes
+  app.get('*', (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'API endpoint not found' });
+    }
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+} else {
+  // In development, also serve public directory
+  app.use(express.static(publicPath));
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

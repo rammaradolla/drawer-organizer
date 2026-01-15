@@ -132,7 +132,27 @@ const createCheckoutSession = async (userId, cartItems, addresses = null, client
 };
 
 const handleWebhook = async (event) => {
-  console.log(`[Stripe Webhook] Received event: ${event.type}`);
+  console.log(`[Stripe Webhook] Received event: ${event.type}, ID: ${event.id}`);
+  
+  // Check if we've already processed this webhook event (idempotency)
+  try {
+    const { data: existingWebhook, error: webhookCheckError } = await supabase
+      .from('order_audit_log')
+      .select('id')
+      .eq('action', 'WEBHOOK_PROCESSED')
+      .like('notes', `%${event.id}%`)
+      .limit(1)
+      .single();
+    
+    if (!webhookCheckError && existingWebhook) {
+      console.log(`[Stripe Webhook] ⚠️ Webhook event ${event.id} already processed. Skipping to prevent duplicate processing.`);
+      return; // Already processed, skip
+    }
+  } catch (checkError) {
+    // If check fails, continue anyway (don't block webhook processing)
+    console.warn(`[Stripe Webhook] Could not check for duplicate webhook ${event.id}, continuing anyway:`, checkError.message);
+  }
+  
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -201,19 +221,40 @@ const handleWebhook = async (event) => {
             notes: `Payment completed via Stripe. Status changed to In Progress / Payment Confirmed.`
           });
         
+        // Mark webhook as processed (idempotency)
+        try {
+          await supabase
+            .from('order_audit_log')
+            .insert({
+              order_id: order.id,
+              action: 'WEBHOOK_PROCESSED',
+              old_values: JSON.stringify({}),
+              new_values: JSON.stringify({ webhook_id: event.id, webhook_type: event.type }),
+              updated_by: order.user_id,
+              notes: `Stripe webhook event ${event.id} (${event.type}) processed successfully`
+            });
+          console.log(`[Stripe Webhook] Marked webhook ${event.id} as processed for order ${order.id}`);
+        } catch (webhookLogError) {
+          console.warn(`[Stripe Webhook] Failed to log webhook processing for ${event.id}:`, webhookLogError.message);
+        }
+        
         console.log(`[Stripe Webhook] Audit log created for order ${order.id}.`);
 
         // Send order confirmation email to customer
+        console.log(`[Stripe Webhook] Attempting to send order confirmation email for order ${order.id}...`);
         try {
           const emailSent = await emailService.sendOrderConfirmation(order.id);
           if (emailSent) {
-            console.log(`[Stripe Webhook] Order confirmation email sent for order ${order.id}`);
+            console.log(`[Stripe Webhook] ✅ Order confirmation email sent successfully for order ${order.id}`);
           } else {
-            console.warn(`[Stripe Webhook] Failed to send order confirmation email for order ${order.id}, but order processing continues`);
+            console.warn(`[Stripe Webhook] ⚠️ Failed to send order confirmation email for order ${order.id}, but order processing continues`);
+            console.warn(`[Stripe Webhook] Check email configuration and server logs for details`);
           }
         } catch (emailError) {
           // Log error but don't fail webhook processing
-          console.error(`[Stripe Webhook] Error sending order confirmation email for order ${order.id}:`, emailError);
+          console.error(`[Stripe Webhook] ❌ Error sending order confirmation email for order ${order.id}:`, emailError);
+          console.error(`[Stripe Webhook] Error message:`, emailError.message);
+          console.error(`[Stripe Webhook] Error code:`, emailError.code);
           console.log(`[Stripe Webhook] Order processing continues despite email error`);
         }
 

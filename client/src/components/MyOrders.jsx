@@ -44,58 +44,76 @@ export default function MyOrders() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4">
-      <h2 className="text-3xl font-bold mb-6 text-center">My Orders</h2>
-      <div className="grid gap-6">
+    <div className="w-full py-4 px-4">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-2xl font-bold mb-4 text-center">My Orders</h2>
+        <div className="grid gap-4">
         {orders.map(order => (
-          <div key={order.id} className="bg-white shadow rounded-lg p-6 flex flex-col gap-2 border">
-            <div className="flex flex-wrap justify-between items-center mb-2">
-              <div className="text-lg font-semibold text-slate-800">Order #{order.id}</div>
-              <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>{order.status}</span>
-            </div>
-            <div className="flex flex-wrap justify-between items-center text-sm text-slate-600 mb-2">
-              <div>Placed: {new Date(order.created_at).toLocaleString()}</div>
-              <div>Total: <span className="font-bold text-blue-700">${order.total_price?.toFixed(2)}</span></div>
+          <div key={order.id} className="bg-white shadow rounded-lg p-4 flex flex-col gap-3 border">
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <div className="text-base font-semibold text-slate-800">Order #{order.id.slice(0, 8)}</div>
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-slate-600">Placed: {new Date(order.created_at).toLocaleDateString()}</div>
+                <div className="text-sm text-slate-600">Total: <span className="font-bold text-blue-700">${order.total_price?.toFixed(2)}</span></div>
+                <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>{order.status}</span>
+              </div>
             </div>
             {/* Addresses */}
             {(order.billing_street || order.shipping_street) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-gray-50 rounded">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-gray-50 rounded">
                 <div>
-                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Billing Address</h4>
-                  <div className="text-xs text-gray-600">
+                  <h4 className="font-semibold text-xs text-gray-700 mb-1">Billing Address</h4>
+                  <div className="text-xs text-gray-600 leading-relaxed">
                     {order.billing_street && <div>{order.billing_street}</div>}
                     {order.billing_city && order.billing_state && (
                       <div>{order.billing_city}, {order.billing_state} {order.billing_zip}</div>
                     )}
                     {order.billing_country && <div>{order.billing_country}</div>}
-                    {order.billing_phone && <div className="mt-1">Phone: {order.billing_phone}</div>}
+                    {order.billing_phone && <div className="mt-0.5">Phone: {order.billing_phone}</div>}
                   </div>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-gray-700 mb-2">Shipping Address</h4>
-                  <div className="text-xs text-gray-600">
+                  <h4 className="font-semibold text-xs text-gray-700 mb-1">Shipping Address</h4>
+                  <div className="text-xs text-gray-600 leading-relaxed">
                     {order.shipping_street && <div>{order.shipping_street}</div>}
                     {order.shipping_city && order.shipping_state && (
                       <div>{order.shipping_city}, {order.shipping_state} {order.shipping_zip}</div>
                     )}
                     {order.shipping_country && <div>{order.shipping_country}</div>}
-                    {order.shipping_phone && <div className="mt-1">Phone: {order.shipping_phone}</div>}
+                    {order.shipping_phone && <div className="mt-0.5">Phone: {order.shipping_phone}</div>}
                   </div>
                 </div>
               </div>
             )}
-            <div className="flex flex-wrap gap-4 mt-2">
+            <div className="flex flex-wrap gap-3">
               {(order.cart_json || []).map((item, idx) => (
-                <div key={idx} className="flex flex-col items-center border rounded p-2 bg-slate-50 min-w-[120px]">
-                  <img src={item.image2D || item.image3D} alt="Design" className="w-16 h-12 object-contain mb-1 border" />
-                  <div className="text-xs text-slate-700 font-medium">{item.dimensions.width}" × {item.dimensions.depth}" × {item.dimensions.height}"</div>
+                <div key={idx} className="flex flex-col items-center border rounded p-3 bg-slate-50 min-w-[180px]">
+                  <div className="flex flex-col gap-2 mb-2">
+                    {item.image2D && (
+                      <div className="flex flex-col items-center">
+                        <div className="text-xs text-gray-500 mb-1 font-medium">2D View</div>
+                        <img src={item.image2D} alt="2D Design" className="w-32 h-24 object-contain border rounded bg-white shadow-sm" />
+                      </div>
+                    )}
+                    {item.image3D && (
+                      <div className="flex flex-col items-center">
+                        <div className="text-xs text-gray-500 mb-1 font-medium">3D View</div>
+                        <img src={item.image3D} alt="3D Design" className="w-32 h-24 object-contain border rounded bg-white shadow-sm" />
+                      </div>
+                    )}
+                    {!item.image2D && !item.image3D && (
+                      <div className="w-32 h-24 border rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">No Image</div>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-700 font-medium">{item.dimensions?.width || 'N/A'}" × {item.dimensions?.depth || 'N/A'}" × {item.dimensions?.height || 'N/A'}"</div>
                   <div className="text-xs text-slate-500">Qty: {item.quantity || 1}</div>
-                  <div className="text-xs text-blue-700 font-bold">${item.price?.toFixed(2)}</div>
+                  <div className="text-sm text-blue-700 font-bold">${item.price?.toFixed(2)}</div>
                 </div>
               ))}
             </div>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );

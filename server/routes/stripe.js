@@ -5,19 +5,40 @@ const { createCheckoutSession, handleWebhook } = require('../services/stripeServ
 
 // This handler will be registered separately in app.js with a raw body parser.
 const webhookHandler = async (req, res) => {
+  console.log('[Stripe Webhook] ========================================');
+  console.log('[Stripe Webhook] Webhook endpoint hit!');
+  console.log('[Stripe Webhook] Method:', req.method);
+  console.log('[Stripe Webhook] Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('[Stripe Webhook] Body length:', req.body?.length || 0);
+  console.log('[Stripe Webhook] ========================================');
+  
   const sig = req.headers['stripe-signature'];
 
+  if (!sig) {
+    console.error('[Stripe Webhook] ❌ No stripe-signature header found');
+    return res.status(400).send('No stripe-signature header');
+  }
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error('[Stripe Webhook] ❌ STRIPE_WEBHOOK_SECRET not configured');
+    return res.status(500).send('Webhook secret not configured');
+  }
+
   try {
+    console.log('[Stripe Webhook] Constructing event with secret:', process.env.STRIPE_WEBHOOK_SECRET.substring(0, 10) + '...');
     const event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
 
+    console.log('[Stripe Webhook] ✅ Event constructed successfully. Type:', event.type);
     await handleWebhook(event);
     res.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('[Stripe Webhook] ❌ Webhook error:', error.message);
+    console.error('[Stripe Webhook] Error type:', error.type);
+    console.error('[Stripe Webhook] Error stack:', error.stack);
     res.status(400).send(`Webhook Error: ${error.message}`);
   }
 };

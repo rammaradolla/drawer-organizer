@@ -1,16 +1,122 @@
 const nodemailer = require('nodemailer');
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
+// Load logo as base64 for email embedding (more reliable than external URLs)
+let logoBase64 = null;
+try {
+  // Try multiple paths to ensure we find the logo file
+  const possiblePaths = [
+    path.join(__dirname, '../client/public/images/design2organize-logo4.png'),
+    path.join(process.cwd(), 'client/public/images/design2organize-logo4.png'),
+    path.resolve(__dirname, '../../client/public/images/design2organize-logo4.png')
+  ];
+  
+  let logoPath = null;
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      logoPath = testPath;
+      console.log('[Email Service] ✅ Found logo at:', logoPath);
+      break;
+    }
+  }
+  
+  if (logoPath) {
+    try {
+      const logoBuffer = fs.readFileSync(logoPath);
+      logoBase64 = logoBuffer.toString('base64');
+      const sizeKB = (logoBuffer.length / 1024).toFixed(2);
+      const base64Length = logoBase64.length;
+      console.log(`[Email Service] ✅ Logo loaded successfully for email embedding`);
+      console.log(`[Email Service]    - Path: ${logoPath}`);
+      console.log(`[Email Service]    - Size: ${sizeKB} KB`);
+      console.log(`[Email Service]    - Base64 length: ${base64Length} characters`);
+    } catch (readError) {
+      console.error('[Email Service] ❌ Error reading logo file:', readError.message);
+    }
+  } else {
+    console.warn('[Email Service] ⚠️ Logo file not found. Tried paths:');
+    possiblePaths.forEach(p => console.warn(`  - ${p}`));
+  }
+} catch (error) {
+  console.error('[Email Service] ❌ Could not load logo:', error.message);
+  console.error('[Email Service] Error stack:', error.stack);
+}
+
+// Track which orders have already had confirmation emails sent (prevents duplicates)
+// This is an in-memory cache that persists for the server session
+const confirmationEmailsSent = new Set();
+
+// Track orders currently being processed (prevents concurrent processing of same order)
+// Maps orderId -> Promise that resolves when email sending completes
+const ordersInProgress = new Map();
+
 // Configure email transporter
-const transporter = nodemailer.createTransport({
+// Support both service-based (Gmail) and SMTP-based (cPanel/GoDaddy) configurations
+let transporterConfig;
+if (process.env.EMAIL_HOST) {
+  // SMTP configuration (for cPanel email, GoDaddy, custom SMTP)
+  const port = parseInt(process.env.EMAIL_PORT || '465');
+  const secure = process.env.EMAIL_SECURE === 'true' || port === 465;
+  
+  transporterConfig = {
+    host: process.env.EMAIL_HOST,
+    port: port,
+    secure: secure,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    },
+    // Connection pooling to limit concurrent connections
+    pool: true,
+    maxConnections: 1, // Limit to 1 concurrent connection to avoid "432 Concurrent connections limit exceeded"
+    maxMessages: 1, // Send 1 message per connection
+    rateDelta: 1000, // Wait 1 second between messages
+    rateLimit: 1, // Max 1 message per rateDelta
+    // GoDaddy-specific: Sometimes requires tls options
+    tls: {
+      rejectUnauthorized: false // Allow self-signed certificates if needed
+    },
+    // Debug: Log authentication attempts
+    debug: process.env.NODE_ENV === 'development',
+    logger: process.env.NODE_ENV === 'development'
+  };
+  
+  console.log('[Email Service] SMTP Configuration:', {
+    host: transporterConfig.host,
+    port: transporterConfig.port,
+    secure: transporterConfig.secure,
+    user: transporterConfig.auth.user,
+    passSet: !!transporterConfig.auth.pass
+  });
+} else {
+  // Service-based configuration (Gmail, Outlook, etc.)
+  transporterConfig = {
   service: process.env.EMAIL_SERVICE || 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
-  }
-});
+    },
+    // Connection pooling to limit concurrent connections
+    pool: true,
+    maxConnections: 1, // Limit to 1 concurrent connection to avoid "432 Concurrent connections limit exceeded"
+    maxMessages: 1, // Send 1 message per connection
+    rateDelta: 1000, // Wait 1 second between messages
+    rateLimit: 1 // Max 1 message per rateDelta
+  };
+}
+
+const transporter = nodemailer.createTransport(transporterConfig);
+
+// Helper function to get properly formatted "from" address
+const getFromAddress = () => {
+  const emailAddress = process.env.EMAIL_USER || 'support@design2organize.net';
+  const displayName = process.env.EMAIL_DISPLAY_NAME || 'Design2Organize Support';
+  return `"${displayName}" <${emailAddress}>`;
+};
 
 // Email templates
 const emailTemplates = {
@@ -19,7 +125,7 @@ const emailTemplates = {
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #007bff;">
-          <h1 style="color: #333; margin: 0;">Drawer Organizer</h1>
+          <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
           <p style="color: #666; margin: 10px 0 0 0;">Order Status Update</p>
         </div>
         
@@ -53,7 +159,7 @@ const emailTemplates = {
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Drawer Organizer. All rights reserved.</p>
+          <p>© 2024 Design 2 Organize. All rights reserved.</p>
         </div>
       </div>
     `
@@ -64,7 +170,7 @@ const emailTemplates = {
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #28a745;">
-          <h1 style="color: #333; margin: 0;">Drawer Organizer</h1>
+          <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
           <p style="color: #666; margin: 10px 0 0 0;">Your Order Has Been Shipped!</p>
         </div>
         
@@ -97,7 +203,7 @@ const emailTemplates = {
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Drawer Organizer. All rights reserved.</p>
+          <p>© 2024 Design 2 Organize. All rights reserved.</p>
         </div>
       </div>
     `
@@ -108,7 +214,7 @@ const emailTemplates = {
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #dc3545;">
-          <h1 style="color: #333; margin: 0;">Drawer Organizer</h1>
+          <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
           <p style="color: #666; margin: 10px 0 0 0;">Order Update Required</p>
         </div>
         
@@ -143,7 +249,7 @@ const emailTemplates = {
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Drawer Organizer. All rights reserved.</p>
+          <p>© 2024 Design 2 Organize. All rights reserved.</p>
         </div>
       </div>
     `
@@ -154,7 +260,7 @@ const emailTemplates = {
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #6c757d;">
-          <h1 style="color: #333; margin: 0;">Drawer Organizer</h1>
+          <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
           <p style="color: #666; margin: 10px 0 0 0;">Order Cancellation Notice</p>
         </div>
         
@@ -186,7 +292,7 @@ const emailTemplates = {
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Drawer Organizer. All rights reserved.</p>
+          <p>© 2024 Design 2 Organize. All rights reserved.</p>
         </div>
       </div>
     `
@@ -227,7 +333,7 @@ const emailTemplates = {
         </div>
         
         <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Drawer Organizer. All rights reserved.</p>
+          <p>© 2024 Design 2 Organize. All rights reserved.</p>
         </div>
       </div>
     `
@@ -258,17 +364,51 @@ const emailTemplates = {
     // Generate items HTML
     const itemsHtml = (cartItems || []).map((item, index) => {
       const itemSubtotal = (item.price || 0) * (item.quantity || 1);
+      
+      // Build image HTML for both 2D and 3D images - VERTICALLY STACKED (one above the other)
+      let imageHtml = '';
+      if (item.image2D || item.image3D) {
+        // Use block-level elements for reliable email client support
+        imageHtml = '<div style="width: 180px; vertical-align: top;">';
+        
+        if (item.image2D) {
+          imageHtml += `
+            <div style="text-align: center; width: 100%; margin-bottom: 14px;">
+              <div style="font-size: 11px; color: #666; margin-bottom: 7px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">2D View</div>
+              <div style="width: 160px; height: 120px; margin: 0 auto; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; display: block;">
+                <img src="${item.image2D}" 
+                     alt="2D Design" 
+                     style="max-width: 160px; max-height: 120px; width: auto; height: 120px; object-fit: contain; display: block; margin: 0 auto;">
+              </div>
+            </div>
+          `;
+        }
+        
+        if (item.image3D) {
+          imageHtml += `
+            <div style="text-align: center; width: 100%;">
+              <div style="font-size: 11px; color: #666; margin-bottom: 7px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">3D View</div>
+              <div style="width: 160px; height: 120px; margin: 0 auto; background: #fafafa; border: 1px solid #e0e0e0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; display: block;">
+                <img src="${item.image3D}" 
+                     alt="3D Design" 
+                     style="max-width: 160px; max-height: 120px; width: auto; height: 120px; object-fit: contain; display: block; margin: 0 auto;">
+              </div>
+            </div>
+          `;
+        }
+        
+        imageHtml += '</div>';
+      } else {
+        imageHtml = '<div style="width: 160px; height: 120px; background: #f0f0f0; border-radius: 6px; display: block; text-align: center; line-height: 120px; color: #999; font-size: 11px;">No Image</div>';
+      }
+      
       return `
         <tr style="border-bottom: 1px solid #e0e0e0;">
-          <td style="padding: 15px; vertical-align: top;">
-            ${item.image2D || item.image3D ? `
-              <img src="${item.image2D || item.image3D}" 
-                   alt="Design" 
-                   style="max-width: 80px; max-height: 80px; border: 1px solid #ddd; border-radius: 4px;">
-            ` : '<div style="width: 80px; height: 80px; background: #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #999; font-size: 12px;">No Image</div>'}
+          <td style="padding: 15px; vertical-align: top; width: 190px; text-align: center;">
+            ${imageHtml}
           </td>
           <td style="padding: 15px; vertical-align: top;">
-            <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${item.wood_type || 'Custom'} Drawer Organizer</div>
+            <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${item.wood_type || 'Custom'} Drawer Insert</div>
             <div style="color: #666; font-size: 14px; margin-bottom: 3px;">
               Dimensions: ${item.dimensions?.width || 'N/A'}&quot; × ${item.dimensions?.depth || 'N/A'}&quot; × ${item.dimensions?.height || 'N/A'}&quot;
             </div>
@@ -282,17 +422,65 @@ const emailTemplates = {
       `;
     }).join('');
 
+    // Generate logo URL or data URI
+    // In development: Use base64 embedding (localhost URLs don't work in emails)
+    // In production: Use domain URL
+    let logoUrl = null;
+    let logoDataUri = null;
+    
+    if (process.env.NODE_ENV === 'production') {
+      // Production: Use domain URL (publicly accessible)
+      const baseUrl = process.env.DOMAIN_URL || process.env.CLIENT_URL || 'http://design2organize.net';
+      logoUrl = `${baseUrl}/images/design2organize-logo4.png`;
+      console.log(`[Order Confirmation Email] Logo: Using production URL: ${logoUrl}`);
+    } else {
+      // Development: Use base64 embedding because localhost URLs are not accessible from email servers
+      // Email clients like Gmail can't access http://localhost URLs
+      if (logoBase64) {
+        logoDataUri = `data:image/png;base64,${logoBase64}`;
+        const logoSizeKB = (logoBase64.length * 3) / 4 / 1024;
+        console.log(`[Order Confirmation Email] Logo: Using base64 embedding in development (${logoSizeKB.toFixed(2)} KB) - localhost URLs don't work in emails`);
+      } else {
+        // Fallback: Try to use external URL (won't work but better than nothing)
+        const clientPort = process.env.VITE_PORT || '5173';
+        logoUrl = `http://localhost:${clientPort}/images/design2organize-logo4.png`;
+        console.warn(`[Order Confirmation Email] Logo: ⚠️ Using localhost URL (won't work in emails): ${logoUrl}`);
+        console.warn(`[Order Confirmation Email] Logo: ⚠️ Logo not found for base64 embedding. Email clients can't access localhost URLs.`);
+      }
+    }
+    
     return {
       subject: `Order Confirmation - Order #${order.id.slice(0, 8)}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
-          <!-- Header -->
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; color: white;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">Drawer Organizer</h1>
-            <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 18px;">Order Confirmation</p>
-            <div style="margin-top: 20px; padding: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; display: inline-block;">
-              <span style="font-size: 14px; opacity: 0.9;">Order #</span>
-              <span style="font-size: 24px; font-weight: bold;">${order.id.slice(0, 8).toUpperCase()}</span>
+          <!-- Header with Logo -->
+          <div style="background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%); padding: 40px 20px; text-align: center; color: white;">
+            <!-- Logo Container -->
+            <div style="margin-bottom: 20px;">
+              ${logoDataUri ? `
+                <!-- Base64 embedded logo (works in all email clients) -->
+                <img src="${logoDataUri}" 
+                     alt="Design 2 Organize" 
+                     style="max-width: 250px; height: auto; display: block; margin: 0 auto; background: rgba(255,255,255,0.98); padding: 16px 20px; border-radius: 10px; box-shadow: 0 6px 12px rgba(0,0,0,0.2); width: auto; border: none; outline: none;">
+              ` : logoUrl ? `
+                <!-- External URL logo (production only) -->
+                <img src="${logoUrl}" 
+                     alt="Design 2 Organize" 
+                     style="max-width: 250px; height: auto; display: block; margin: 0 auto; background: rgba(255,255,255,0.98); padding: 16px 20px; border-radius: 10px; box-shadow: 0 6px 12px rgba(0,0,0,0.2); width: auto; border: none; outline: none;"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <!-- Fallback text if image fails to load -->
+                <h1 style="color: white; margin: 0; font-size: 28px; display: none; font-weight: 600; letter-spacing: 1px;">Design 2 Organize</h1>
+              ` : `
+                <!-- Text fallback if logo not available -->
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 1px;">Design 2 Organize</h1>
+              `}
+            </div>
+            <!-- Order Confirmation Text -->
+            <p style="color: rgba(255,255,255,0.95); margin: 10px 0 0 0; font-size: 18px; font-weight: 500; letter-spacing: 0.5px;">Order Confirmation</p>
+            <!-- Order Number Badge -->
+            <div style="margin-top: 20px; padding: 12px 20px; background: rgba(255,255,255,0.2); border-radius: 8px; display: inline-block; border: 1px solid rgba(255,255,255,0.3);">
+              <span style="font-size: 14px; opacity: 0.95; font-weight: 500;">Order #</span>
+              <span style="font-size: 24px; font-weight: bold; letter-spacing: 1px;">${order.id.slice(0, 8).toUpperCase()}</span>
             </div>
           </div>
           
@@ -301,7 +489,7 @@ const emailTemplates = {
             <!-- Greeting -->
             <h2 style="color: #333; margin-bottom: 10px;">Thank you for your order, ${user.name || user.email}!</h2>
             <p style="color: #555; line-height: 1.6; margin-bottom: 25px;">
-              We've received your order and payment has been confirmed. Your custom drawer organizer is now being prepared for production.
+              We've received your order and payment has been confirmed. Your custom drawer insert is now being prepared for production.
             </p>
             
             <!-- Order Summary Box -->
@@ -326,7 +514,7 @@ const emailTemplates = {
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
               <thead>
                 <tr style="background: #f8f9fa;">
-                  <th style="padding: 12px; text-align: left; font-weight: bold; color: #333; width: 100px;">Image</th>
+                  <th style="padding: 12px; text-align: left; font-weight: bold; color: #333; width: 190px;">Preview</th>
                   <th style="padding: 12px; text-align: left; font-weight: bold; color: #333;">Item Details</th>
                   <th style="padding: 12px; text-align: right; font-weight: bold; color: #333;">Price</th>
                 </tr>
@@ -373,7 +561,7 @@ const emailTemplates = {
                  style="background: #007bff; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; margin-right: 10px;">
                 View Your Orders
               </a>
-              <a href="mailto:${process.env.EMAIL_USER || 'support@drawerorganizer.com'}?subject=Question about Order ${order.id.slice(0, 8)}" 
+              <a href="mailto:${process.env.EMAIL_USER || 'support@design2organize.net'}?subject=Question about Order ${order.id.slice(0, 8)}" 
                  style="background: #6c757d; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                 Contact Support
               </a>
@@ -382,15 +570,15 @@ const emailTemplates = {
             <!-- Support Info -->
             <p style="color: #666; font-size: 14px; margin-top: 30px; text-align: center;">
               If you have any questions about your order, please contact us at 
-              <a href="mailto:${process.env.EMAIL_USER || 'support@drawerorganizer.com'}" style="color: #007bff; text-decoration: none;">
-                ${process.env.EMAIL_USER || 'support@drawerorganizer.com'}
+              <a href="mailto:${process.env.EMAIL_USER || 'support@design2organize.net'}" style="color: #007bff; text-decoration: none;">
+                ${process.env.EMAIL_USER || 'support@design2organize.net'}
               </a>
             </p>
           </div>
           
           <!-- Footer -->
           <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #e0e0e0;">
-            <p style="margin: 5px 0;">© ${new Date().getFullYear()} Drawer Organizer. All rights reserved.</p>
+            <p style="margin: 5px 0;">© ${new Date().getFullYear()} Design 2 Organize. All rights reserved.</p>
             <p style="margin: 5px 0;">This is an automated confirmation email. Please do not reply to this message.</p>
           </div>
         </div>
@@ -432,16 +620,17 @@ const emailService = {
       // Get template
       const template = emailTemplates.orderStatusUpdate(order, user, oldStatus, newStatus);
 
-      // Send email
+      // Send email from support@design2organize.net
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: getFromAddress(),
         to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
         subject: template.subject,
         html: template.html
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`Order status update email sent to ${user.email} for order ${orderId}`);
+      console.log(`Order status update email sent from ${getFromAddress()} to ${user.email} for order ${orderId}`);
       return true;
     } catch (error) {
       console.error('Error sending order status update email:', error);
@@ -480,16 +669,17 @@ const emailService = {
       // Get template
       const template = emailTemplates.trackingUpdate(order, user);
 
-      // Send email
+      // Send email from support@design2organize.net
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: getFromAddress(),
         to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
         subject: template.subject,
         html: template.html
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`Tracking update email sent to ${user.email} for order ${orderId}`);
+      console.log(`Tracking update email sent from ${getFromAddress()} to ${user.email} for order ${orderId}`);
       return true;
     } catch (error) {
       console.error('Error sending tracking update email:', error);
@@ -528,16 +718,17 @@ const emailService = {
       // Get template
       const template = emailTemplates.orderBlocked(order, user, blockerReason);
 
-      // Send email
+      // Send email from support@design2organize.net
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: getFromAddress(),
         to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
         subject: template.subject,
         html: template.html
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`Order blocked email sent to ${user.email} for order ${orderId}`);
+      console.log(`Order blocked email sent from ${getFromAddress()} to ${user.email} for order ${orderId}`);
       return true;
     } catch (error) {
       console.error('Error sending order blocked email:', error);
@@ -576,16 +767,17 @@ const emailService = {
       // Get template
       const template = emailTemplates.orderCancelled(order, user, reason);
 
-      // Send email
+      // Send email from support@design2organize.net
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: getFromAddress(),
         to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
         subject: template.subject,
         html: template.html
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`Order cancelled email sent to ${user.email} for order ${orderId}`);
+      console.log(`Order cancelled email sent from ${getFromAddress()} to ${user.email} for order ${orderId}`);
       return true;
     } catch (error) {
       console.error('Error sending order cancelled email:', error);
@@ -704,7 +896,7 @@ const emailService = {
             </div>
             
             <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-              <p>© 2024 Drawer Organizer. All rights reserved.</p>
+              <p>© 2024 Design 2 Organize. All rights reserved.</p>
             </div>
           </div>
         `
@@ -733,11 +925,11 @@ const emailService = {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: toEmail,
-        subject: 'Email Service Test - Drawer Organizer',
+        subject: 'Email Service Test - Design 2 Organize',
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #28a745;">
-              <h1 style="color: #333; margin: 0;">Drawer Organizer</h1>
+              <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
               <p style="color: #666; margin: 10px 0 0 0;">Email Service Test</p>
             </div>
             
@@ -761,7 +953,7 @@ const emailService = {
             </div>
             
             <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-              <p>© 2024 Drawer Organizer. All rights reserved.</p>
+              <p>© 2024 Design 2 Organize. All rights reserved.</p>
             </div>
           </div>
         `
@@ -796,8 +988,112 @@ const emailService = {
 
   // Send order confirmation email to customer
   async sendOrderConfirmation(orderId) {
-    try {
-      console.log(`[Order Confirmation Email] Starting email send for order ${orderId}`);
+    console.log(`[Order Confirmation Email] ========================================`);
+    console.log(`[Order Confirmation Email] FUNCTION CALLED for order ${orderId}`);
+    console.log(`[Order Confirmation Email] ========================================`);
+    
+    // Check if this order is currently being processed (prevent concurrent calls)
+    if (ordersInProgress.has(orderId)) {
+      console.log(`[Order Confirmation Email] ⚠️ Email sending already in progress for order ${orderId}. Waiting for existing process...`);
+      try {
+        // Wait for the existing process to complete
+        const result = await ordersInProgress.get(orderId);
+        console.log(`[Order Confirmation Email] Existing process completed for order ${orderId}. Result: ${result}`);
+        return result;
+      } catch (error) {
+        console.error(`[Order Confirmation Email] Error waiting for existing process for order ${orderId}:`, error);
+        // Continue with new attempt if waiting failed
+      }
+    }
+    
+    // Check in-memory cache first (fast check)
+    if (confirmationEmailsSent.has(orderId)) {
+      console.log(`[Order Confirmation Email] ⚠️ Email already sent for order ${orderId} (in-memory cache). Skipping to prevent duplicate.`);
+      return true;
+    }
+    
+    // Create a promise for this order and store it (prevents concurrent processing)
+    const emailPromise = (async () => {
+      try {
+        // RACE CONDITION FIX: Try to create audit log entry FIRST (atomic operation)
+        // This prevents multiple concurrent requests from all sending emails
+        // We use a "lock" entry that we create before sending
+        const lockId = `email_lock_${orderId}_${Date.now()}`;
+        let lockAcquired = false;
+        
+        try {
+      // Try to insert a "lock" entry - if this succeeds, we're the first one
+      const { data: lockEntry, error: lockError } = await supabase
+        .from('order_audit_log')
+        .insert({
+          order_id: orderId,
+          action: 'CONFIRMATION_EMAIL_SENT',
+          old_values: JSON.stringify({}),
+          new_values: JSON.stringify({ lock_id: lockId, status: 'sending' }),
+          updated_by: null, // Will be set after we get order data
+          notes: `Email sending in progress (lock: ${lockId})`
+        })
+        .select()
+        .single();
+      
+      if (!lockError && lockEntry) {
+        lockAcquired = true;
+        console.log(`[Order Confirmation Email] ✅ Acquired lock for order ${orderId}. Proceeding with email send.`);
+      } else {
+        // Lock acquisition failed - check if email was already sent
+        console.log(`[Order Confirmation Email] ⚠️ Could not acquire lock for order ${orderId}. Checking if email was already sent...`);
+        
+        const { data: existingLog, error: checkError } = await supabase
+          .from('order_audit_log')
+          .select('id, notes')
+          .eq('order_id', orderId)
+          .eq('action', 'CONFIRMATION_EMAIL_SENT')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (!checkError && existingLog) {
+          // Check if it's a completed email (not just a lock)
+          const newValues = typeof existingLog.notes === 'string' && existingLog.notes.includes('sent to') 
+            ? true 
+            : (existingLog.notes && !existingLog.notes.includes('lock'));
+          
+          if (newValues || existingLog.notes?.includes('sent to')) {
+            console.log(`[Order Confirmation Email] ⚠️ Email already sent for order ${orderId} (found existing entry). Skipping to prevent duplicate.`);
+            confirmationEmailsSent.add(orderId);
+            return true;
+          }
+        }
+        
+        // If we get here, lock failed but no completed email found
+        // This might be a race condition - wait a moment and check again
+        console.log(`[Order Confirmation Email] ⚠️ Lock acquisition failed but no completed email found. Waiting 500ms and re-checking...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const { data: recheckLog } = await supabase
+          .from('order_audit_log')
+          .select('id, notes')
+          .eq('order_id', orderId)
+          .eq('action', 'CONFIRMATION_EMAIL_SENT')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (recheckLog && (recheckLog.notes?.includes('sent to') || !recheckLog.notes?.includes('lock'))) {
+          console.log(`[Order Confirmation Email] ⚠️ Email was sent by another process. Skipping to prevent duplicate.`);
+          confirmationEmailsSent.add(orderId);
+          return true;
+        }
+        
+        // Still no completed email - proceed but log warning
+        console.warn(`[Order Confirmation Email] ⚠️ Proceeding despite lock failure - possible race condition for order ${orderId}`);
+      }
+        } catch (lockCheckError) {
+          console.error(`[Order Confirmation Email] Error during lock acquisition for order ${orderId}:`, lockCheckError);
+          // Continue anyway - better to send duplicate than miss an email
+        }
+        
+        console.log(`[Order Confirmation Email] Starting email send for order ${orderId}`);
       
       // Fetch complete order data with user information
       const { data: order, error: orderError } = await supabase
@@ -852,28 +1148,144 @@ const emailService = {
         return false;
       }
 
-      // Send email
+      // Send email from support@design2organize.net with proper display name
       const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: getFromAddress(),
         to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
         subject: template.subject,
         html: template.html
       };
 
-      console.log(`[Order Confirmation Email] Attempting to send email to ${user.email} for order ${orderId}`);
-      await transporter.sendMail(mailOptions);
-      console.log(`[Order Confirmation Email] Successfully sent confirmation email to ${user.email} for order ${orderId}`);
+      console.log(`[Order Confirmation Email] Attempting to send email from ${getFromAddress()} to ${user.email} for order ${orderId}`);
+      
+      // Send email with retry logic for connection limit errors
+      let retries = 3;
+      let lastError = null;
+      
+      while (retries > 0) {
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log(`[Order Confirmation Email] Successfully sent confirmation email to ${user.email} for order ${orderId}`);
+          lastError = null;
+          break; // Success, exit retry loop
+        } catch (sendError) {
+          lastError = sendError;
+          
+          // Check if it's a concurrent connection error (432)
+          if (sendError.responseCode === 432 || (sendError.message && sendError.message.includes('Concurrent connections limit'))) {
+            retries--;
+            if (retries > 0) {
+              const waitTime = (4 - retries) * 2000; // Exponential backoff: 2s, 4s, 6s
+              console.warn(`[Order Confirmation Email] ⚠️ Concurrent connection limit error (432) for order ${orderId}. Retrying in ${waitTime}ms... (${retries} retries left)`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+              console.error(`[Order Confirmation Email] ❌ Failed to send email after 3 retries due to concurrent connection limit for order ${orderId}`);
+              throw sendError;
+            }
+          } else {
+            // Not a connection limit error, don't retry
+            throw sendError;
+          }
+        }
+      }
+      
+      if (lastError) {
+        throw lastError;
+      }
+      
+      // Mark this order as having confirmation email sent (prevent duplicates)
+      // 1. Add to in-memory cache
+      confirmationEmailsSent.add(orderId);
+      
+      // 2. Update the lock entry to mark email as successfully sent
+      if (lockAcquired) {
+        try {
+          // Update the lock entry we created earlier
+          const { error: updateError } = await supabase
+            .from('order_audit_log')
+            .update({
+              new_values: JSON.stringify({ email_sent: true, sent_at: new Date().toISOString(), lock_id: lockId }),
+              updated_by: order.user_id,
+              notes: `Order confirmation email sent to ${user.email}`
+            })
+            .eq('order_id', orderId)
+            .eq('action', 'CONFIRMATION_EMAIL_SENT')
+            .like('notes', `%lock: ${lockId}%`);
+          
+          if (updateError) throw updateError;
+          console.log(`[Order Confirmation Email] Updated lock entry to completed status for order ${orderId}`);
+        } catch (updateError) {
+          // If update fails, try to insert a new entry
+          try {
+            await supabase
+              .from('order_audit_log')
+              .insert({
+                order_id: orderId,
+                action: 'CONFIRMATION_EMAIL_SENT',
+                old_values: JSON.stringify({}),
+                new_values: JSON.stringify({ email_sent: true, sent_at: new Date().toISOString() }),
+                updated_by: order.user_id,
+                notes: `Order confirmation email sent to ${user.email}`
+              });
+            console.log(`[Order Confirmation Email] Created new audit log entry for order ${orderId}`);
+          } catch (insertError) {
+            console.warn(`[Order Confirmation Email] Failed to create/update audit log entry for order ${orderId}:`, insertError.message);
+          }
+        }
+      } else {
+        // If we didn't acquire lock, still try to create entry (might fail if duplicate, that's OK)
+        try {
+          await supabase
+            .from('order_audit_log')
+            .insert({
+              order_id: orderId,
+              action: 'CONFIRMATION_EMAIL_SENT',
+              old_values: JSON.stringify({}),
+              new_values: JSON.stringify({ email_sent: true, sent_at: new Date().toISOString() }),
+              updated_by: order.user_id,
+              notes: `Order confirmation email sent to ${user.email}`
+            });
+          console.log(`[Order Confirmation Email] Created audit log entry for order ${orderId}`);
+        } catch (auditError) {
+          // If insert fails, it might be because another process already created it - that's OK
+          console.log(`[Order Confirmation Email] Could not create audit log entry (may already exist):`, auditError.message);
+        }
+      }
+      
+      console.log(`[Order Confirmation Email] Marked order ${orderId} as having confirmation email sent (in-memory + database)`);
+      
       return true;
     } catch (error) {
       console.error(`[Order Confirmation Email] Error sending confirmation email for order ${orderId}:`, error);
       console.error(`[Order Confirmation Email] Error details:`, {
         message: error.message,
         stack: error.stack,
-        code: error.code
+        code: error.code,
+        responseCode: error.responseCode
       });
+      
+      // Check for quota errors (550 response code)
+      if (error.responseCode === 550 || (error.message && error.message.includes('quota'))) {
+        console.error(`[Order Confirmation Email] ⚠️ QUOTA EXCEEDED: Email sending limit reached.`);
+        console.error(`[Order Confirmation Email] This means authentication is working, but GoDaddy email quota limit has been reached.`);
+        console.error(`[Order Confirmation Email] Wait 1 hour for quota reset, or upgrade your GoDaddy email plan.`);
+      }
+      
       // Don't throw - email failure shouldn't break order processing
       return false;
-    }
+      } finally {
+        // Remove from in-progress map when done (success or failure)
+        ordersInProgress.delete(orderId);
+        console.log(`[Order Confirmation Email] Removed order ${orderId} from in-progress tracking`);
+      }
+    })();
+    
+    // Store the promise so concurrent calls can wait for it
+    ordersInProgress.set(orderId, emailPromise);
+    
+    // Execute and return the result
+    return await emailPromise;
   }
 };
 
