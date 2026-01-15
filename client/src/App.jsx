@@ -531,7 +531,7 @@ function App() {
                 </div>
               ) : (!user || user.role === 'customer') ? (
                 <>
-                  <div className="flex-[2_2_0%] min-w-0">
+                  <div className="flex-[5_5_0%] min-w-0">
                     <CanvasEditor
                       key={resetKey}
                       ref={canvasEditorRef}
@@ -543,7 +543,7 @@ function App() {
                     />
                   </div>
                   {/* Cart Sidebar - Always show Cart, let Cart handle sign-in prompt */}
-                  <div className="flex-[1_1_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
+                  <div className="flex-[2_2_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
                     {loading ? (
                       <div className="flex items-center justify-center h-full">Loading...</div>
                     ) : (

@@ -672,9 +672,9 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
 
   return (
     <div className="flex flex-col w-full h-full">
-      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 p-4" ref={containerRef}>
+      <div className="flex flex-col lg:flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 p-2 sm:p-4" ref={containerRef}>
         {/* Left Section: Dimensions Form, Manufacturing Tolerance, and Add to Cart */}
-        <div className="w-44 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
+        <div className="w-full lg:w-44 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
           <h3 className="text-base font-semibold text-slate-900 mb-3">Drawer Dimensions</h3>
           <DrawerSetup
             dimensions={dimensions}
@@ -685,7 +685,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
         {/* Middle Section: 2D and 3D Combined in Single Panel */}
         <div className="flex-1 min-w-0 overflow-hidden">
           <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col">
-            <div className="flex flex-row gap-4 flex-1 min-h-0">
+            <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
               {/* 2D Design Section */}
               <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
                 <div className="flex justify-between items-center mb-1 flex-shrink-0">
@@ -693,25 +693,25 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 </div>
                 
               {/* 2D Section Controls */}
-              <div className="flex items-center gap-2 mb-1.5 pb-1 border-b border-slate-200 overflow-x-auto flex-shrink-0" style={{ minHeight: '38px' }}>
+              <div className="flex flex-wrap items-center gap-2 mb-1.5 pb-1 border-b border-slate-200 overflow-x-auto flex-shrink-0" style={{ minHeight: '38px' }}>
                 {/* Compartment Controls */}
                 <div className="flex items-center space-x-1 flex-shrink-0">
                   <button
-                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
                     onClick={addRow}
                     disabled={!selectedId}
                   >
                     Add Row
                   </button>
                   <button
-                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
+                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
                     onClick={addColumn}
                     disabled={!selectedId}
                   >
                     Add Column
                   </button>
                   <button
-                    className="px-3 py-1.5 text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm"
+                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm"
                     onClick={handleClear}
                   >
                     Clear All
@@ -721,7 +721,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 {/* History Controls */}
                 <div className="flex items-center space-x-1 border-l border-slate-300 pl-2 flex-shrink-0">
                   <button
-                    className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+                    className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
                     onClick={handleUndo}
                     disabled={historyIndex <= 0}
                     title="Undo (Ctrl+Z)"
@@ -729,7 +729,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                     ↶ Undo
                   </button>
                   <button
-                    className="px-2 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
+                    className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
                     onClick={handleRedo}
                     disabled={historyIndex >= history.length - 1}
                     title="Redo (Ctrl+Y)"
@@ -951,7 +951,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
               </div>
 
               {/* 3D Preview Section */}
-              <div className="flex-1 min-w-0 flex flex-col border-l border-slate-200 pl-4">
+              <div className="flex-1 min-w-0 flex flex-col lg:border-l lg:border-slate-200 lg:pl-4  border-slate-200 pt-4 lg:pt-0">
                 <div className="flex justify-between items-center mb-1 flex-shrink-0">
                   <h3 className="text-base font-semibold text-slate-900">3D Preview</h3>
                 </div>
@@ -971,7 +971,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                 </div>
                 
                 <div className="text-xs text-slate-600 mt-1 space-y-0 flex-shrink-0">
-                  <div className="flex justify-between">
+                  <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-0">
                     <span>
                       <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
                       <span className="text-slate-500 ml-2">(Ordered: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)})</span>
@@ -996,7 +996,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                     defaultDesignState={defaultDesignState}
                     dimensions={dimensions}
                     layout={{ blocks, splitLines, selectedWoodType }}
-                    className="py-2 px-4 text-sm"
+                    className="py-2 px-3 sm:px-4 text-xs sm:text-sm w-full sm:w-auto"
                   />
                 </div>
               </div>
