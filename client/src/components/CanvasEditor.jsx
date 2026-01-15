@@ -672,7 +672,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
 
   return (
     <div className="flex flex-col w-full h-full">
-      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 px-4 pt-4" ref={containerRef}>
+      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 px-4 pt-2 pb-2" ref={containerRef}>
         {/* Left Section: Dimensions Form, Manufacturing Tolerance, and Add to Cart */}
         <div className="w-52 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
           <h3 className="text-base font-semibold text-slate-900 mb-3">Drawer Dimensions</h3>
@@ -680,32 +680,20 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
             dimensions={dimensions}
             onDimensionsSet={setDimensions}
           />
-          <div className="mt-4">
-            <AddToCartButton
-              design2DRef={stageRef}
-              threeRenderer={threeRenderer}
-              designState={{ blocks, splitLines }}
-              setDesignState={(state) => {
-                setBlocks(state.blocks);
-                setSplitLines(state.splitLines);
-              }}
-              defaultDesignState={defaultDesignState}
-              dimensions={dimensions}
-              layout={{ blocks, splitLines, selectedWoodType }}
-              className="w-full py-3 text-base"
-            />
-          </div>
         </div>
 
-        {/* Middle Section: 2D Canvas */}
-        <div className="flex-[1.5] min-w-0 overflow-hidden">
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
-              <div className="flex justify-between items-center mb-1.5">
-                <h3 className="text-base font-semibold text-slate-900">2D Design</h3>
-              </div>
-              
+        {/* Middle Section: 2D and 3D Combined in Single Panel */}
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+            <div className="flex flex-row gap-4 flex-1 min-h-0">
+              {/* 2D Design Section */}
+              <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-1 flex-shrink-0">
+                  <h3 className="text-base font-semibold text-slate-900">2D Design</h3>
+                </div>
+                
               {/* 2D Section Controls */}
-              <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-200 overflow-x-auto flex-shrink-0">
+              <div className="flex items-center gap-2 mb-1.5 pb-1 border-b border-slate-200 overflow-x-auto flex-shrink-0" style={{ minHeight: '38px' }}>
                 {/* Compartment Controls */}
                 <div className="flex items-center space-x-1 flex-shrink-0">
                   <button
@@ -939,7 +927,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                   </Stage>
                 </div>
                 
-                <div className="text-xs text-slate-600 mt-2 space-y-1.5 flex-shrink-0">
+                <div className="text-xs text-slate-600 mt-1 space-y-1 flex-shrink-0">
                   <div className="flex justify-between">
                     <span>
                       <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
@@ -948,8 +936,8 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                     <span>Scale: {Math.round(scale * 100)}%</span>
                   </div>
                   <div>
-                    <h4 className="text-xs font-medium text-slate-800 mb-1">Instructions</h4>
-                    <div className="text-slate-500 space-y-0.5 text-xs">
+                    <h4 className="text-xs font-medium text-slate-800 mb-0.5">Instructions</h4>
+                    <div className="text-slate-500 space-y-0 text-xs">
                       <div>• Click on any compartment to select it</div>
                       <div>• Use "Add Row" to split horizontally</div>
                       <div>• Use "Add Column" to split vertically</div>
@@ -960,43 +948,60 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                   </div>
                 </div>
               </div>
-            </div>
-        </div>
+              </div>
 
-        {/* Right Section: 3D Preview */}
-        <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex flex-col">
-              <div className="flex justify-between items-center mb-1.5">
-                <h3 className="text-base font-semibold text-slate-900">3D Preview</h3>
-              </div>
-              
-              {/* Spacer to match 2D controls height exactly */}
-              <div className="mb-2 pb-1.5 border-b border-slate-200 flex-shrink-0" style={{ height: '38px' }}></div>
-              
-              <div className="relative flex-1 min-h-0 flex items-center justify-center bg-slate-50 border-2 border-slate-300 rounded overflow-hidden">
-                <ThreeJSWrapper 
-                  selectedWoodType={selectedWoodType}
-                  dimensions={manufacturingDimensions}
-                  blocks={blocks}
-                  splitLines={splitLines}
-                  woodTypes={availableTextures}
-                  threeRenderer={threeRenderer}
-                />
-              </div>
-              
-              <div className="text-xs text-slate-600 mt-2 space-y-0.5 flex-shrink-0">
-                <div className="flex justify-between">
-                  <span>
-                    <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
-                    <span className="text-slate-500 ml-2">(Ordered: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)})</span>
-                  </span>
-                  <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
+              {/* 3D Preview Section */}
+              <div className="flex-1 min-w-0 flex flex-col border-l border-slate-200 pl-4">
+                <div className="flex justify-between items-center mb-1 flex-shrink-0">
+                  <h3 className="text-base font-semibold text-slate-900">3D Preview</h3>
                 </div>
-                <div className="text-slate-500 text-center text-xs">
-                  Interactive 3D Preview
+                
+                {/* Spacer to match 2D controls height exactly */}
+                <div className="mb-1.5 pb-1 border-b border-slate-200 flex-shrink-0" style={{ minHeight: '38px' }}></div>
+                
+                <div className="relative min-h-0 flex items-center justify-center bg-slate-50 border-2 border-slate-300 rounded overflow-hidden">
+                  <ThreeJSWrapper 
+                    selectedWoodType={selectedWoodType}
+                    dimensions={manufacturingDimensions}
+                    blocks={blocks}
+                    splitLines={splitLines}
+                    woodTypes={availableTextures}
+                    threeRenderer={threeRenderer}
+                  />
+                </div>
+                
+                <div className="text-xs text-slate-600 mt-1 space-y-0 flex-shrink-0">
+                  <div className="flex justify-between">
+                    <span>
+                      <span className="font-semibold">Manufacturing Dimensions:</span> {formatInches32(manufacturingDimensions.width)} × {formatInches32(manufacturingDimensions.depth)} × {formatInches32(manufacturingDimensions.height)}
+                      <span className="text-slate-500 ml-2">(Ordered: {formatInches32(dimensions.width)} × {formatInches32(dimensions.depth)} × {formatInches32(dimensions.height)})</span>
+                    </span>
+                    <span className="font-medium text-slate-800">{availableTextures.find(t => t.id === selectedWoodType)?.name} Wood</span>
+                  </div>
+                  <div className="text-slate-500 text-center text-xs mt-0.5">
+                    Interactive 3D Preview
+                  </div>
+                </div>
+                
+                {/* Add to Cart Button - Bottom Right */}
+                <div className="mt-2 flex justify-end">
+                  <AddToCartButton
+                    design2DRef={stageRef}
+                    threeRenderer={threeRenderer}
+                    designState={{ blocks, splitLines }}
+                    setDesignState={(state) => {
+                      setBlocks(state.blocks);
+                      setSplitLines(state.splitLines);
+                    }}
+                    defaultDesignState={defaultDesignState}
+                    dimensions={dimensions}
+                    layout={{ blocks, splitLines, selectedWoodType }}
+                    className="py-2 px-4 text-sm"
+                  />
                 </div>
               </div>
             </div>
+          </div>
         </div>
       </div>
     </div>
