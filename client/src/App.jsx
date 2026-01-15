@@ -46,6 +46,7 @@ function App() {
   const [userSearch, setUserSearch] = useState('');
   const [allUsers, setAllUsers] = useState([]);
   const [toast, setToast] = useState({ message: '', type: '' });
+  const [mobileView, setMobileView] = useState('design');
 
   // Helper to show toast
   const showToast = (message, type = 'info') => {
@@ -395,39 +396,39 @@ function App() {
           {toast.message}
         </div>
       )}
-      <div className="w-full px-4" style={{paddingTop: user && user.isImpersonating ? 72 : 0}}>
-        <div className="flex items-center justify-between mb-6">
+      <div className="w-full px-2 sm:px-4" style={{paddingTop: user && user.isImpersonating ? 72 : 0}}>
+        <div className="flex flex-col sm:flex-row items-center sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
           <img 
             src="/images/design2organize-logo4.png" 
             alt="Design2Organize - Custom Drawer Inserts to Organize" 
-            className="h-15 object-contain"
-            style={{ maxWidth: '400px' }}
+            className="h-14 sm:h-12 md:h-16 object-contain w-auto"
+            style={{ maxWidth: '100%', maxWidth: 'min(400px, 90vw)' }}
           />
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4 lg:gap-6 w-full sm:w-auto">
             {/* Show Home link for customers only */}
             {(!user || user.role === 'customer') && (
-              <Link to="/" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Home</Link>
+              <Link to="/" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold text-xs sm:text-sm">Home</Link>
             )}
             {/* Show My Orders link for customers only */}
             {(!user || user.role === 'customer') && (
               <>
-              <Link to="/orders" className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">My Orders</Link>
-                <Link to="/profile" className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Profile</Link>
+              <Link to="/orders" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold text-xs sm:text-sm">My Orders</Link>
+                <Link to="/profile" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold text-xs sm:text-sm">Profile</Link>
               </>
             )}
             {/* Fulfillment link - only for operations users */}
             {user && user.role === 'operations' && (
-              <Link to="/fulfillment" className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 font-semibold rounded">
+              <Link to="/fulfillment" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white hover:bg-blue-700 font-semibold rounded text-xs sm:text-sm">
                 Dashboard
               </Link>
             )}
             {/* Admin-only links: Admin Panel and Fulfillment */}
             {user && user.role === 'admin' && (
               <>
-                <Link to="/admin" className="px-4 py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">
+                <Link to="/admin" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold text-xs sm:text-sm">
                   Admin Panel
                 </Link>
-                <Link to="/fulfillment" className="px-4 py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold ml-4">
+                <Link to="/fulfillment" className="px-2 sm:px-4 py-1.5 sm:py-2 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 font-semibold text-xs sm:text-sm sm:ml-4">
                   Fulfillment
                 </Link>
               </>
@@ -435,15 +436,16 @@ function App() {
             {/* Impersonate Button for admin/operations */}
             {(user && (user.role === 'admin' || user.role === 'operations')) && (
               <button
-                className="px-4 py-2 bg-yellow-200 text-yellow-900 rounded font-semibold ml-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-2 sm:px-4 py-1.5 sm:py-2 bg-yellow-200 text-yellow-900 rounded font-semibold disabled:opacity-60 disabled:cursor-not-allowed text-xs sm:text-sm sm:ml-2"
                 onClick={() => setShowImpersonateModal(true)}
                 disabled={user.isImpersonating}
                 title={user.isImpersonating ? 'You cannot impersonate another user while already impersonating.' : ''}
               >
-                Impersonate User
+                <span className="hidden sm:inline">Impersonate User</span>
+                <span className="sm:hidden">Impersonate</span>
               </button>
             )}
-            <div className="ml-6">
+            <div className="sm:ml-6">
               {user ? (
                 <UserInfo />
               ) : (
@@ -523,7 +525,7 @@ function App() {
           <Route path="/profile/setup" element={<ProfileSetup />} />
           <Route path="/profile" element={<ProfileSettings />} />
           <Route path="*" element={
-            <div className="flex flex-row w-full h-full">
+            <div className="flex flex-col lg:flex-row w-full h-full">
               {/* Show loading while user is loading or redirecting */}
               {loading ? (
                 <div className="w-full flex items-center justify-center">
@@ -531,7 +533,43 @@ function App() {
                 </div>
               ) : (!user || user.role === 'customer') ? (
                 <>
-                  <div className="flex-[5_5_0%] min-w-0">
+                  {/* Mobile Tab Sections */}
+                  <div className="lg:hidden flex border-b border-gray-300 bg-white mt-4">
+                    <button
+                      onClick={() => setMobileView('design')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-all relative ${
+                        mobileView === 'design'
+                          ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      }`}
+                    >
+                      Design
+                      {mobileView === 'design' && (
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setMobileView('cart')}
+                      className={`flex-1 px-4 py-3 text-sm font-medium transition-all relative ${
+                        mobileView === 'cart'
+                          ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      }`}
+                    >
+                      Cart
+                      {cart.length > 0 && (
+                        <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                          {cart.length}
+                        </span>
+                      )}
+                      {mobileView === 'cart' && (
+                        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Design Section */}
+                  <div className={`${mobileView === 'design' ? 'flex' : 'hidden'} lg:flex flex-[5_5_0%] min-w-0`}>
                     <CanvasEditor
                       key={resetKey}
                       ref={canvasEditorRef}
@@ -543,7 +581,7 @@ function App() {
                     />
                   </div>
                   {/* Cart Sidebar - Always show Cart, let Cart handle sign-in prompt */}
-                  <div className="flex-[2_2_0%] min-w-[320px] bg-gray-50 border-l border-gray-200 flex flex-col ml-6">
+                  <div className={`${mobileView === 'cart' ? 'flex' : 'hidden'} lg:flex flex-[2_2_0%] min-w-[320px] bg-gray-50 lg:border-l border-gray-200 flex flex-col lg:ml-6`}>
                     {loading ? (
                       <div className="flex items-center justify-center h-full">Loading...</div>
                     ) : (

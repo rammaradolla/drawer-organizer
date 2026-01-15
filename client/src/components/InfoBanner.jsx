@@ -25,6 +25,24 @@ const steps = [
 
 export default function InfoBanner() {
   const [activeStep, setActiveStep] = useState(0);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    if (typeof window !== 'undefined') {
+      setWindowWidth(window.innerWidth);
+      window.addEventListener('resize', handleResize);
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -36,21 +54,22 @@ export default function InfoBanner() {
   return (
     <div
       style={{
-        width: "calc(100% + 2rem)", // Full width accounting for parent padding (px-4 = 1rem on each side)
-        height: 80,
+        width: windowWidth < 640 ? "calc(100% + 1rem)" : "calc(100% + 2rem)", // Full width accounting for parent padding
+        height: windowWidth < 640 ? 60 : 80, // Smaller height on mobile
         background: "#14b8a6", // Teal color matching logo
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 20, // Reduced from 32 for better spacing
+        gap: windowWidth < 640 ? 12 : windowWidth < 1024 ? 16 : 20, // Responsive gap
         borderRadius: 0, // No rounded corners
         margin: 0,
-        marginLeft: "-1rem", // Negative margin to break out of parent padding (1rem = 16px = px-4)
-        marginRight: "-1rem",
-        padding: "0 32px", // Increased from 24px for better edge spacing
+        marginLeft: windowWidth < 640 ? "-0.5rem" : "-1rem", // Responsive negative margin
+        marginRight: windowWidth < 640 ? "-0.5rem" : "-1rem",
+        padding: windowWidth < 640 ? "0 8px" : windowWidth < 1024 ? "0 16px" : "0 32px", // Responsive padding
         overflow: "hidden",
         position: "relative",
       }}
+      className="banner-container"
     >
       <style>
         {`
@@ -95,17 +114,20 @@ export default function InfoBanner() {
           <span
             style={{
               fontWeight: 500,
-              fontSize: 20,
+              fontSize: windowWidth < 640 ? 14 : windowWidth < 1024 ? 16 : 20,
               color: "#ffffff", // White text for contrast on teal
               letterSpacing: 0.1,
               textAlign: "right",
               display: "flex",
               alignItems: "center",
-              whiteSpace: "nowrap",
+              whiteSpace: windowWidth < 640 ? "normal" : "nowrap",
               flexShrink: 0,
             }}
+            className="banner-text"
           >
-            Your organizer, in 4 steps <span style={{ fontSize: 44, marginLeft: 12, display: "inline-flex", alignItems: "center", flexShrink: 0 }}>👉</span>
+            <span className="hidden sm:inline">Your organizer, in 4 steps</span>
+            <span className="sm:hidden">4 steps</span>
+            <span style={{ fontSize: windowWidth < 640 ? 28 : windowWidth < 1024 ? 36 : 44, marginLeft: windowWidth < 640 ? 6 : 12, display: "inline-flex", alignItems: "center", flexShrink: 0 }}>👉</span>
           </span>
         </div>
       </div>
@@ -116,18 +138,18 @@ export default function InfoBanner() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 10, // Reduced from 12 for tighter spacing
-              minWidth: 160, // Reduced from 180 for more compact steps
+              gap: windowWidth < 640 ? 8 : windowWidth < 1024 ? 10 : 10,
+              minWidth: windowWidth < 640 ? "auto" : windowWidth < 1024 ? 120 : 160,
               borderRadius: 8,
-              padding: "0 12px", // Increased from 8px for better internal spacing
+              padding: windowWidth < 640 ? "0 6px" : windowWidth < 1024 ? "0 8px" : "0 12px",
             }}
           >
             <img
               src={step.img}
               alt={step.alt}
               style={{
-                height: 56,
-                width: 56,
+                height: windowWidth < 640 ? 36 : windowWidth < 1024 ? 44 : 56,
+                width: windowWidth < 640 ? 36 : windowWidth < 1024 ? 44 : 56,
                 objectFit: "contain",
                 borderRadius: 8,
                 background: "#f5f5f5",
@@ -137,22 +159,22 @@ export default function InfoBanner() {
             <span
               style={{
                 fontWeight: 600,
-                fontSize: 18,
+                fontSize: windowWidth < 640 ? 12 : windowWidth < 1024 ? 14 : 18,
                 color: "#ffffff", // White text for contrast on teal
                 letterSpacing: 0.2,
               }}
+              className="hidden sm:inline"
             >
               {step.label}
             </span>
           </div>
           {idx < steps.length - 1 && (
             <span
-              className={`arrow-animate${activeStep === idx ? " arrow-animate" : ""}`}
+              className={`arrow-animate${activeStep === idx ? " arrow-animate" : ""} hidden sm:inline-block`}
               style={{
-                fontSize: 32,
-                margin: "0 12px", // Increased from 8px for better arrow spacing
+                fontSize: windowWidth < 1024 ? 24 : 32,
+                margin: windowWidth < 640 ? "0 8px" : windowWidth < 1024 ? "0 10px" : "0 12px",
                 userSelect: "none",
-                display: "inline-block",
                 color: "#ffffff", // White arrow for contrast
               }}
             >
