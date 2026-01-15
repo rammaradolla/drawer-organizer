@@ -672,9 +672,9 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
 
   return (
     <div className="flex flex-col w-full h-full">
-      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 px-4 pt-2 pb-2" ref={containerRef}>
+      <div className="flex flex-row gap-4 w-full h-full min-h-screen overflow-hidden bg-slate-50 p-4" ref={containerRef}>
         {/* Left Section: Dimensions Form, Manufacturing Tolerance, and Add to Cart */}
-        <div className="w-52 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
+        <div className="w-44 flex-shrink-0 bg-white p-3 rounded-lg border border-slate-200 shadow-sm overflow-y-auto">
           <h3 className="text-base font-semibold text-slate-900 mb-3">Drawer Dimensions</h3>
           <DrawerSetup
             dimensions={dimensions}
