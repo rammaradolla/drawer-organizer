@@ -82,6 +82,9 @@ const OPERATIONAL_STAGES = [
 
 export default function OrderDetailsModal({ order, onClose, operationsUsers = [], onOrderUpdate }) {
   const [activeTab, setActiveTab] = useState('details');
+  const [notesModalItem, setNotesModalItem] = useState(null);
+  const [adminNotes, setAdminNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Helper to map user ID to name/email
   const getAssigneeName = (userId) => {
@@ -130,6 +133,56 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
     } catch (error) {
       console.error('Error updating stage assignee:', error);
       // Revert the change on error
+    }
+  };
+
+  // Open notes modal for an item
+  const openNotesModal = (item, itemIndex) => {
+    setNotesModalItem({ ...item, index: itemIndex });
+    setAdminNotes(item.adminNotes || '');
+  };
+
+  // Save admin notes for an item
+  const saveAdminNotes = async () => {
+    if (!notesModalItem) return;
+    
+    setSavingNotes(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      // Update the cart_json array with the new admin notes
+      const updatedCartJson = [...order.cart_json];
+      updatedCartJson[notesModalItem.index] = {
+        ...updatedCartJson[notesModalItem.index],
+        adminNotes: adminNotes.trim() || null
+      };
+      
+      const response = await fetch(`/api/fulfillment/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ cart_json: updatedCartJson }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert('Failed to save notes: ' + (errorData.message || 'Unknown error'));
+      } else {
+        // Close modal and refresh
+        setNotesModalItem(null);
+        setAdminNotes('');
+        if (onOrderUpdate) {
+          onOrderUpdate();
+        }
+      }
+    } catch (error) {
+      console.error('Error saving admin notes:', error);
+      alert('Failed to save notes: ' + error.message);
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -236,12 +289,23 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
                           )}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold">{item.wood_type} Organizer</h4>
-                          <p className="text-sm text-gray-600">
-                            {item.dimensions?.width}" x {item.dimensions?.depth}" x {item.dimensions?.height}"
-                          </p>
-                          <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
-                          <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold">{item.wood_type} Organizer</h4>
+                              <p className="text-sm text-gray-600">
+                                {item.dimensions?.width}" x {item.dimensions?.depth}" x {item.dimensions?.height}"
+                              </p>
+                              <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                              <p className="text-lg font-semibold text-blue-600 mt-1">${item.price?.toFixed(2)}</p>
+                            </div>
+                            <button
+                              onClick={() => openNotesModal(item, index)}
+                              className="no-print px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              title="Add/Edit Notes"
+                            >
+                              Notes
+                            </button>
+                          </div>
                         </div>
                       </div>
                       {/* Customer Notes & Photo Section */}
@@ -266,6 +330,13 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
                               <span className='italic text-gray-400'>No photo provided.</span>
                             )}
                           </div>
+                        </div>
+                      )}
+                      {/* Admin Notes Section */}
+                      {item.adminNotes && (
+                        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="text-xs font-semibold text-blue-800 mb-1">Admin Notes (Added on behalf of customer)</div>
+                          <div className="text-sm text-blue-900 break-words whitespace-pre-line">{item.adminNotes}</div>
                         </div>
                       )}
                     </div>
@@ -308,6 +379,63 @@ export default function OrderDetailsModal({ order, onClose, operationsUsers = []
           )}
         </div>
       </div>
+
+      {/* Admin Notes Modal */}
+      {notesModalItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl"
+              onClick={() => {
+                setNotesModalItem(null);
+                setAdminNotes('');
+              }}
+            >
+              &times;
+            </button>
+            <h3 className="text-xl font-semibold mb-4">Add Notes for Item</h3>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>{notesModalItem.wood_type} Organizer</strong> - {notesModalItem.dimensions?.width}" x {notesModalItem.dimensions?.depth}" x {notesModalItem.dimensions?.height}"
+              </p>
+              <p className="text-xs text-gray-500 mb-4">
+                Add notes on behalf of the customer. These notes will be visible to the production team.
+              </p>
+              <label className="block text-sm font-medium mb-2">Notes</label>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                className="w-full px-3 py-2 border rounded"
+                rows="6"
+                placeholder="Enter notes for this item..."
+                maxLength={500}
+              />
+              <div className="text-xs text-gray-500 mt-1 text-right">
+                {adminNotes.length}/500 characters
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={saveAdminNotes}
+                disabled={savingNotes}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {savingNotes ? 'Saving...' : 'Save Notes'}
+              </button>
+              <button
+                onClick={() => {
+                  setNotesModalItem(null);
+                  setAdminNotes('');
+                }}
+                disabled={savingNotes}
+                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:bg-gray-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

@@ -274,7 +274,8 @@ router.patch('/orders/:orderId', async (req, res) => {
       notes, 
       blocker_reason,
       assignee_id,
-      stage_assignees
+      stage_assignees,
+      cart_json
     } = req.body;
 
     // Validate status
@@ -338,6 +339,7 @@ router.patch('/orders/:orderId', async (req, res) => {
     if (blocker_reason !== undefined) updateData.blocker_reason = blocker_reason;
     if (assignee_id !== undefined) updateData.assignee_id = assignee_id;
     if (stage_assignees !== undefined) updateData.stage_assignees = stage_assignees;
+    if (cart_json !== undefined) updateData.cart_json = cart_json;
 
     // Defensive: treat '' or undefined as null for assignee_id
     if (updateData.assignee_id === '' || updateData.assignee_id === undefined) {
@@ -432,6 +434,13 @@ router.patch('/orders/:orderId', async (req, res) => {
         auditLogPayload.notes = `Tracking number updated by ${req.user.email}.`;
         auditLogPayload.old_values.tracking_number = oldOrder.tracking_number;
         auditLogPayload.new_values.tracking_number = tracking_number;
+    }
+
+    if (cart_json && JSON.stringify(cart_json) !== JSON.stringify(oldOrder.cart_json)) {
+      auditLogPayload.action = 'CART_ITEMS_UPDATED';
+      auditLogPayload.notes = `Cart items updated by ${req.user.email}.`;
+      auditLogPayload.old_values.cart_json = oldOrder.cart_json;
+      auditLogPayload.new_values.cart_json = cart_json;
     }
 
     if (assignee_id && assignee_id !== oldOrder.assignee_id) {
