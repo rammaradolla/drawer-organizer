@@ -50,7 +50,7 @@ export default function Cart() {
         </div>
       )}
       {cart.length === 0 ? (
-        <div className="p-6 text-center text-slate-600 flex flex-col items-center h-full">
+        <div className="text-center text-slate-600 flex flex-col items-center h-full">
         <img src="/images/how-to-measure.jpg" alt="How to Measure Inside Drawer Dimensions" className="w-full max-w-md mb-4 rounded shadow border bg-white" />
         <div className="mb-3 text-base max-w-lg mx-auto text-blue-900 font-semibold">
           Not sure what size you need? Use the guide above to measure your drawer's inner dimensions—width, depth, and height—for a perfect custom fit!

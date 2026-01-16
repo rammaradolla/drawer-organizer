@@ -581,7 +581,7 @@ function App() {
                     />
                   </div>
                   {/* Cart Sidebar - Always show Cart, let Cart handle sign-in prompt */}
-                  <div className={`${mobileView === 'cart' ? 'flex' : 'hidden'} lg:flex flex-[2_2_0%] min-w-[320px] bg-gray-50 lg:border-l border-gray-200 flex flex-col lg:ml-6`}>
+                  <div className={`${mobileView === 'cart' ? 'flex' : 'hidden'} lg:flex flex-[2_2_0%] min-w-[320px] bg-gray-50 lg:border-l border-gray-200 flex flex-col`}>
                     {loading ? (
                       <div className="flex items-center justify-center h-full">Loading...</div>
                     ) : (

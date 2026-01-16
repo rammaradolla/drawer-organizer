@@ -4,6 +4,8 @@ const { createClient } = require('@supabase/supabase-js');
 const { authenticateToken, requireRole, requireAnyRole } = require('../middleware/auth');
 const db = require('../utils/db');
 const jwt = require('jsonwebtoken');
+const stripeService = require('../services/stripeService');
+const emailService = require('../services/emailService');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -729,6 +731,145 @@ router.get('/audit-log', requireRole('admin'), async (req, res) => {
     res.json({ success: true, entries: data });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch audit log', error: error.message });
+  }
+});
+
+// POST /api/admin/orders/:orderId/cancel - Cancel order and process refund
+router.post('/orders/:orderId/cancel', requireRole('admin'), async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { reason } = req.body;
+
+    // Fetch order from database
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', orderId)
+      .single();
+
+    if (orderError || !order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // Validate cancellation eligibility
+    if (order.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'Order is already cancelled'
+      });
+    }
+
+    if (!['pending', 'in_progress'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot cancel fulfilled or shipped orders. Only pending and in_progress orders can be cancelled.'
+      });
+    }
+
+    if (!order.stripe_checkout_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order does not have payment information'
+      });
+    }
+
+    // Process refund through Stripe
+    let refund;
+    try {
+      refund = await stripeService.processOrderRefund(order);
+    } catch (refundError) {
+      console.error(`[Cancel Order] Refund failed for order ${orderId}:`, refundError);
+      
+      // Check if already refunded
+      if (refundError.message.includes('already been refunded')) {
+        // Continue with cancellation even if already refunded
+        console.log(`[Cancel Order] Order ${orderId} was already refunded. Proceeding with cancellation.`);
+      } else {
+        // For other refund errors, fail the cancellation
+        return res.status(500).json({
+          success: false,
+          message: `Failed to process refund: ${refundError.message}`
+        });
+      }
+    }
+
+    // Update order status
+    const updateData = {
+      status: 'cancelled',
+      granular_status: 'Cancelled',
+      last_updated_by: req.user.id,
+      last_updated_at: new Date().toISOString(),
+    };
+
+    // Add refund_id if refund was successful
+    if (refund && refund.id) {
+      updateData.refund_id = refund.id;
+    }
+
+    // Add cancellation reason if provided
+    if (reason) {
+      updateData.cancelled_reason = reason;
+    }
+
+    const { data: updatedOrder, error: updateError } = await supabase
+      .from('orders')
+      .update(updateData)
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    // Create audit log entry
+    await supabase
+      .from('order_audit_log')
+      .insert({
+        order_id: orderId,
+        action: 'ORDER_CANCELLED',
+        old_values: JSON.stringify({
+          status: order.status,
+          granular_status: order.granular_status,
+          refund_id: order.refund_id || null,
+        }),
+        new_values: JSON.stringify({
+          status: 'cancelled',
+          granular_status: 'Cancelled',
+          refund_id: refund?.id || null,
+          refund_amount: refund?.amount ? (refund.amount / 100).toFixed(2) : null,
+          refund_status: refund?.status || null,
+        }),
+        updated_by: req.user.id,
+        notes: reason || `Order cancelled by admin ${req.user.email}${refund ? `. Refund processed: ${refund.id}` : ''}`
+      });
+
+    // Send cancellation email to customer
+    try {
+      await emailService.sendOrderCancellation(orderId, refund);
+      console.log(`[Cancel Order] ✅ Cancellation email sent for order ${orderId}`);
+    } catch (emailError) {
+      // Log email error but don't fail the cancellation
+      console.error(`[Cancel Order] ⚠️ Failed to send cancellation email for order ${orderId}:`, emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Order cancelled and refund processed successfully',
+      order: updatedOrder,
+      refund: refund || null
+    });
+
+  } catch (error) {
+    console.error(`[Cancel Order] Error cancelling order ${req.params.orderId}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cancel order',
+      error: error.message
+    });
   }
 });
 

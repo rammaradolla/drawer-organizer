@@ -414,6 +414,7 @@ export default function Fulfillment() {
             ) : filteredOrders.map(order => {
               const isAssignedHead = user?.role === 'department_head' && order.current_department_head_id === user.id;
               const isAssignedMember = user?.role === 'department_member' && order.current_department_member_id === user.id;
+              const isCancelled = order.status === 'cancelled';
               return (
                 <tr key={order.id} className="border-b hover:bg-gray-50">
                   <td className="p-3 font-mono text-xs w-[100px]">{order.id.slice(0, 8)}</td>
@@ -436,9 +437,10 @@ export default function Fulfillment() {
                   </td>
                   <td className="p-3 w-[130px]">
                     <select
-                      className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'}`}
+                      className={`rounded px-2 py-1 w-full ${STATUS_COLORS[order.granular_status] || 'bg-gray-100'} ${isCancelled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       value={order.granular_status}
                       onChange={e => updateOrder(order.id, { granular_status: e.target.value })}
+                      disabled={isCancelled}
                     >
                       {GRANULAR_STATUS_OPTIONS.map(opt => (
                         <option key={opt} value={opt}>{opt}</option>
@@ -448,12 +450,18 @@ export default function Fulfillment() {
                   <td className="p-3 w-[160px]">
                     {/* Assignee Dropdown for admin, operations, and department head; read-only for others */}
                     {['admin', 'operations', 'department_head'].includes(user?.role) ? (
-                      <AssigneeDropdown
-                        order={order}
-                        departmentHeads={departmentHeads}
-                        fetchDepartmentMembers={fetchDepartmentMembers}
-                        updateOrder={updateOrder}
-                      />
+                      isCancelled ? (
+                        <span className="text-gray-500 text-sm">
+                          {order.assignee ? `${order.assignee.name} (${order.assignee.email})` : 'Unassigned'}
+                        </span>
+                      ) : (
+                        <AssigneeDropdown
+                          order={order}
+                          departmentHeads={departmentHeads}
+                          fetchDepartmentMembers={fetchDepartmentMembers}
+                          updateOrder={updateOrder}
+                        />
+                      )
                     ) : (
                       <span>
                         {order.assignee ? `${order.assignee.name} (${order.assignee.email})` : 'Unassigned'}
@@ -461,11 +469,12 @@ export default function Fulfillment() {
                     )}
                   </td>
                   <td className="p-3 w-[110px]">
-                    {/* Task Status Dropdown - always editable, default to in-progress */}
+                    {/* Task Status Dropdown - disabled for cancelled orders */}
                     <select
-                      className="rounded px-2 py-1 border"
+                      className={`rounded px-2 py-1 border ${isCancelled ? 'opacity-50 cursor-not-allowed' : ''}`}
                       value={order.task_status || 'in-progress'}
                       onChange={e => {
+                        if (isCancelled) return;
                         // PATCH /orders/:orderId/task-status
                         const newStatus = e.target.value;
                         const updateTaskStatus = async () => {
@@ -488,6 +497,7 @@ export default function Fulfillment() {
                         };
                         updateTaskStatus();
                       }}
+                      disabled={isCancelled}
                     >
                       <option value="in-progress">In Progress</option>
                       <option value="complete">Complete</option>

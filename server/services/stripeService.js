@@ -270,7 +270,63 @@ const handleWebhook = async (event) => {
   }
 };
 
+// Process refund for an order
+const processOrderRefund = async (order) => {
+  try {
+    console.log(`[Refund Service] Processing refund for order ${order.id}`);
+    
+    // Check if order has stripe_checkout_id
+    if (!order.stripe_checkout_id) {
+      throw new Error('Order does not have a Stripe checkout session ID');
+    }
+
+    // Retrieve the checkout session to get payment_intent
+    const session = await stripe.checkout.sessions.retrieve(order.stripe_checkout_id);
+    
+    if (!session.payment_intent) {
+      throw new Error('Checkout session does not have a payment intent');
+    }
+
+    console.log(`[Refund Service] Found payment intent: ${session.payment_intent} for order ${order.id}`);
+
+    // Calculate refund amount in cents
+    const refundAmount = Math.round(Number(order.total_price) * 100);
+
+    // Create refund
+    const refund = await stripe.refunds.create({
+      payment_intent: session.payment_intent,
+      amount: refundAmount,
+      reason: 'requested_by_customer',
+    });
+
+    console.log(`[Refund Service] ✅ Refund created successfully: ${refund.id} for amount $${(refundAmount / 100).toFixed(2)}`);
+
+    return {
+      id: refund.id,
+      amount: refund.amount,
+      status: refund.status,
+      currency: refund.currency,
+      payment_intent: refund.payment_intent,
+    };
+  } catch (error) {
+    console.error(`[Refund Service] ❌ Error processing refund for order ${order.id}:`, error);
+    
+    // Handle specific Stripe errors
+    if (error.type === 'StripeInvalidRequestError') {
+      if (error.code === 'charge_already_refunded') {
+        throw new Error('Payment has already been refunded');
+      }
+      if (error.code === 'resource_missing') {
+        throw new Error('Payment intent not found');
+      }
+    }
+    
+    throw error;
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   handleWebhook,
+  processOrderRefund,
 }; 

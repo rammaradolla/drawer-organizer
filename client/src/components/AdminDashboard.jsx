@@ -23,6 +23,12 @@ function AdminDashboard() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState('');
   const [auditLogFilter, setAuditLogFilter] = useState('all');
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [cancelOrderId, setCancelOrderId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   // List of all operational stages
   const OPERATIONAL_STAGES = [
@@ -155,6 +161,38 @@ function AdminDashboard() {
     if (allUsers.length > 0) fetchUserStages();
   }, [allUsers]);
 
+  // Fetch orders for cancellation
+  useEffect(() => {
+    if (activeTab !== 'orders') return;
+    async function fetchOrders() {
+      setOrdersLoading(true);
+      setOrdersError('');
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData?.session?.access_token;
+        // Fetch pending and in_progress orders only
+        const res = await fetch('/api/fulfillment/orders?status=all&limit=100', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          // Filter to only show pending and in_progress orders
+          const cancellableOrders = data.orders.filter(order => 
+            order.status === 'pending' || order.status === 'in_progress'
+          );
+          setOrders(cancellableOrders);
+        } else {
+          setOrdersError(data.message || 'Failed to fetch orders');
+        }
+      } catch (e) {
+        setOrdersError('Failed to fetch orders');
+      } finally {
+        setOrdersLoading(false);
+      }
+    }
+    fetchOrders();
+  }, [activeTab]);
+
   // Fetch audit log entries (impersonation events)
   useEffect(() => {
     if (activeTab !== 'audit') return;
@@ -195,6 +233,50 @@ function AdminDashboard() {
     return users;
   }, [allUsers, userRoleFilters, userSearch]);
 
+  // Handle order cancellation
+  async function handleCancelOrder(orderId) {
+    setCancelling(true);
+    setError('');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      const res = await fetch(`/api/admin/orders/${orderId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ reason: cancelReason || null }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage(`Order ${orderId.slice(0, 8)} cancelled successfully. Refund ${data.refund ? `processed: ${data.refund.id}` : 'processing'}...`);
+        setCancelOrderId(null);
+        setCancelReason('');
+        // Refresh orders list
+        const ordersRes = await fetch('/api/fulfillment/orders?status=all&limit=100', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const ordersData = await ordersRes.json();
+        if (ordersData.success) {
+          const cancellableOrders = ordersData.orders.filter(order => 
+            order.status === 'pending' || order.status === 'in_progress'
+          );
+          setOrders(cancellableOrders);
+        }
+      } else {
+        setError(data.message || 'Failed to cancel order');
+      }
+    } catch (e) {
+      setError('Failed to cancel order');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   // Modal component
   function Modal({ children, onClose }) {
     return (
@@ -212,6 +294,7 @@ function AdminDashboard() {
       <h2 className="text-2xl font-bold mb-6">Admin Dashboard</h2>
       <div className="mb-6 flex gap-4">
         <button className={`px-4 py-2 rounded font-semibold ${activeTab === 'users' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`} onClick={() => setActiveTab('users')}>Manage Users</button>
+        <button className={`px-4 py-2 rounded font-semibold ${activeTab === 'orders' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`} onClick={() => setActiveTab('orders')}>Manage Orders</button>
         <button className={`px-4 py-2 rounded font-semibold ${activeTab === 'audit' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`} onClick={() => setActiveTab('audit')}>Audit Log</button>
       </div>
       {activeTab === 'users' && (
@@ -365,6 +448,103 @@ function AdminDashboard() {
                   })}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+      {activeTab === 'orders' && (
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="text-xl font-semibold mb-4">Manage Orders - Cancellation</h3>
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-800 rounded">
+              {error}
+            </div>
+          )}
+          {message && (
+            <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-800 rounded">
+              {message}
+            </div>
+          )}
+          {ordersLoading ? (
+            <div>Loading orders...</div>
+          ) : ordersError ? (
+            <div className="text-red-600">{ordersError}</div>
+          ) : orders.length === 0 ? (
+            <div className="text-gray-500">No cancellable orders found (only pending and in_progress orders can be cancelled).</div>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-3 text-left">Order ID</th>
+                  <th className="p-3 text-left">Customer</th>
+                  <th className="p-3 text-left">Total</th>
+                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-left">Created</th>
+                  <th className="p-3 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map(order => (
+                  <tr key={order.id} className="border-b hover:bg-gray-50">
+                    <td className="p-3 font-mono text-xs">{order.id.slice(0, 8)}</td>
+                    <td className="p-3">{order.users?.email || 'N/A'}</td>
+                    <td className="p-3">${Number(order.total_price).toFixed(2)}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        order.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {order.status}
+                      </span>
+                    </td>
+                    <td className="p-3">{new Date(order.created_at).toLocaleDateString()}</td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => setCancelOrderId(order.id)}
+                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                      >
+                        Cancel Order
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {cancelOrderId && (
+            <Modal onClose={() => { setCancelOrderId(null); setCancelReason(''); }}>
+              <div className="p-4">
+                <h4 className="text-lg font-semibold mb-4">Cancel Order</h4>
+                <p className="mb-4">Are you sure you want to cancel order <strong>{cancelOrderId.slice(0, 8)}</strong>?</p>
+                <p className="mb-4 text-sm text-gray-600">This will process a full refund to the customer and cannot be undone.</p>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-2">Cancellation Reason (Optional)</label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    className="w-full px-3 py-2 border rounded"
+                    rows="3"
+                    placeholder="Enter reason for cancellation..."
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleCancelOrder(cancelOrderId)}
+                    disabled={cancelling}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-gray-400"
+                  >
+                    {cancelling ? 'Processing...' : 'Confirm Cancellation'}
+                  </button>
+                  <button
+                    onClick={() => { setCancelOrderId(null); setCancelReason(''); }}
+                    disabled={cancelling}
+                    className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 disabled:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </Modal>
           )}
         </div>
       )}

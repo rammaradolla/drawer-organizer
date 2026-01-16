@@ -255,48 +255,64 @@ const emailTemplates = {
     `
   }),
 
-  orderCancelled: (order, user, reason) => ({
-    subject: `Order #${order.id.slice(0, 8)} Cancelled`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #6c757d;">
-          <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
-          <p style="color: #666; margin: 10px 0 0 0;">Order Cancellation Notice</p>
-        </div>
-        
-        <div style="padding: 30px 20px;">
-          <h2 style="color: #333; margin-bottom: 20px;">Hello ${user.name || user.email},</h2>
-          
-          <p style="color: #555; line-height: 1.6; margin-bottom: 20px;">
-            Your order has been cancelled as requested.
-          </p>
-          
-          <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #6c757d;">
-            <h3 style="color: #333; margin-top: 0;">Cancellation Details</h3>
-            <p><strong>Order ID:</strong> ${order.id.slice(0, 8)}</p>
-            <p><strong>Status:</strong> <span style="color: #6c757d; font-weight: bold;">CANCELLED</span></p>
-            ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-            <p><strong>Refund:</strong> A refund will be processed within 5-7 business days</p>
+  orderCancelled: (order, user, reason, refund) => {
+    const refundAmount = refund && refund.amount ? (refund.amount / 100).toFixed(2) : order.total_price ? Number(order.total_price).toFixed(2) : '0.00';
+    const refundStatus = refund?.status || 'processing';
+    const refundId = refund?.id || order.refund_id || 'Pending';
+    const refundStatusText = refundStatus === 'succeeded' ? 'Succeeded' : refundStatus === 'pending' ? 'Processing' : 'Processing';
+    
+    return {
+      subject: `Order #${order.id.slice(0, 8)} Cancelled`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; border-bottom: 3px solid #6c757d;">
+            <h1 style="color: #333; margin: 0;">Design 2 Organize</h1>
+            <p style="color: #666; margin: 10px 0 0 0;">Order Cancellation Notice</p>
           </div>
           
-          <p style="color: #555; line-height: 1.6; margin-bottom: 20px;">
-            If you have any questions about the cancellation or refund process, please don't hesitate to contact us.
-          </p>
+          <div style="padding: 30px 20px;">
+            <h2 style="color: #333; margin-bottom: 20px;">Hello ${user.name || user.email},</h2>
+            
+            <p style="color: #555; line-height: 1.6; margin-bottom: 20px;">
+              Your order has been cancelled and a refund has been processed.
+            </p>
+            
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #6c757d;">
+              <h3 style="color: #333; margin-top: 0;">Cancellation Details</h3>
+              <p><strong>Order ID:</strong> ${order.id.slice(0, 8)}</p>
+              <p><strong>Status:</strong> <span style="color: #6c757d; font-weight: bold;">CANCELLED</span></p>
+              ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
+            </div>
+            
+            <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
+              <h3 style="color: #333; margin-top: 0;">Refund Information</h3>
+              <p><strong>Refund ID:</strong> ${refundId}</p>
+              <p><strong>Refund Amount:</strong> <span style="color: #2e7d32; font-weight: bold; font-size: 18px;">$${refundAmount}</span></p>
+              <p><strong>Status:</strong> <span style="color: ${refundStatus === 'succeeded' ? '#2e7d32' : '#f57c00'}; font-weight: bold;">${refundStatusText}</span></p>
+              <p style="color: #555; font-size: 14px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #c8e6c9;">
+                Your refund will be credited back to your original payment method within 5-10 business days. You will receive a confirmation email once the refund is complete.
+              </p>
+            </div>
+            
+            <p style="color: #555; line-height: 1.6; margin-bottom: 20px;">
+              If you have any questions about the cancellation or refund process, please don't hesitate to contact us.
+            </p>
+            
+            <div style="margin: 30px 0;">
+              <a href="mailto:${process.env.EMAIL_USER || 'support@design2organize.net'}?subject=Order ${order.id.slice(0, 8)} - Cancellation Question" 
+                 style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                Contact Support
+              </a>
+            </div>
+          </div>
           
-          <div style="margin: 30px 0;">
-            <a href="mailto:${process.env.EMAIL_USER}?subject=Order ${order.id.slice(0, 8)} - Cancellation Question" 
-               style="background: #6c757d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-              Contact Support
-            </a>
+          <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
+            <p>© 2024 Design 2 Organize. All rights reserved.</p>
           </div>
         </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px;">
-          <p>© 2024 Design 2 Organize. All rights reserved.</p>
-        </div>
-      </div>
-    `
-  }),
+      `
+    };
+  },
 
   operationsNotification: (order, user, action, updatedBy) => ({
     subject: `Operations Alert: ${action} - Order #${order.id.slice(0, 8)}`,
@@ -764,8 +780,15 @@ const emailService = {
         return false;
       }
 
-      // Get template
-      const template = emailTemplates.orderCancelled(order, user, reason);
+      // Get cancellation reason from order or parameter
+      const cancellationReason = reason || order.cancelled_reason || null;
+
+      // Get refund from order (if passed as second parameter in updated calls)
+      // For backward compatibility, check order.refund_id
+      const refundData = order.refund_id ? { id: order.refund_id, status: 'succeeded', amount: order.total_price ? Math.round(Number(order.total_price) * 100) : null } : null;
+
+      // Get template with refund details
+      const template = emailTemplates.orderCancelled(order, user, cancellationReason, refundData);
 
       // Send email from support@design2organize.net
       const mailOptions = {
@@ -777,10 +800,99 @@ const emailService = {
       };
 
       await transporter.sendMail(mailOptions);
-      console.log(`Order cancelled email sent from ${getFromAddress()} to ${user.email} for order ${orderId}`);
+      console.log(`[Order Cancellation Email] ✅ Successfully sent cancellation email to ${user.email} for order ${orderId}`);
       return true;
     } catch (error) {
-      console.error('Error sending order cancelled email:', error);
+      console.error(`[Order Cancellation Email] ❌ Error sending cancellation email for order ${orderId}:`, error);
+      return false;
+    }
+  },
+
+  // Send order cancellation email (new function with refund support)
+  async sendOrderCancellation(orderId, refund) {
+    console.log(`[Order Cancellation Email] ========================================`);
+    console.log(`[Order Cancellation Email] FUNCTION CALLED for order ${orderId}`);
+    console.log(`[Order Cancellation Email] ========================================`);
+
+    try {
+      // Fetch order and user data from database
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          users!orders_user_id_fkey (
+            id,
+            email,
+            name
+          )
+        `)
+        .eq('id', orderId)
+        .single();
+
+      if (orderError || !order) {
+        console.error(`[Order Cancellation Email] Error fetching order ${orderId}:`, orderError);
+        return false;
+      }
+
+      const user = order.users;
+      if (!user || !user.email) {
+        console.error(`[Order Cancellation Email] No user or email found for order ${orderId}`);
+        return false;
+      }
+
+      console.log(`[Order Cancellation Email] Found user ${user.email} for order ${orderId}`);
+
+      // Get cancellation reason from order
+      const cancellationReason = order.cancelled_reason || null;
+
+      // Use refund parameter if provided, otherwise check order
+      const refundData = refund || (order.refund_id ? { id: order.refund_id, status: 'succeeded', amount: order.total_price ? Math.round(Number(order.total_price) * 100) : null } : null);
+
+      // Get email template
+      const template = emailTemplates.orderCancelled(order, user, cancellationReason, refundData);
+
+      // Validate email address
+      if (!user.email || !user.email.includes('@')) {
+        console.error(`[Order Cancellation Email] Invalid email address for order ${orderId}: ${user.email}`);
+        return false;
+      }
+
+      // Validate email service configuration
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error(`[Order Cancellation Email] Email service not configured. EMAIL_USER: ${!!process.env.EMAIL_USER}, EMAIL_PASS: ${!!process.env.EMAIL_PASS}`);
+        return false;
+      }
+
+      // Send email
+      const mailOptions = {
+        from: getFromAddress(),
+        to: user.email,
+        replyTo: process.env.EMAIL_USER || 'support@design2organize.net',
+        subject: template.subject,
+        html: template.html
+      };
+
+      console.log(`[Order Cancellation Email] Attempting to send email from ${getFromAddress()} to ${user.email} for order ${orderId}`);
+
+      await transporter.sendMail(mailOptions);
+      console.log(`[Order Cancellation Email] ✅ Successfully sent cancellation email to ${user.email} for order ${orderId}`);
+
+      return true;
+    } catch (error) {
+      console.error(`[Order Cancellation Email] ❌ Error sending cancellation email for order ${orderId}:`, error);
+      console.error(`[Order Cancellation Email] Error details:`, {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        responseCode: error.responseCode
+      });
+      
+      // Check for quota errors
+      if (error.responseCode === 550 || (error.message && error.message.includes('quota'))) {
+        console.error(`[Order Cancellation Email] ⚠️ QUOTA EXCEEDED: Email sending limit reached.`);
+      }
+      
+      // Don't throw - email failure shouldn't break cancellation processing
       return false;
     }
   },
