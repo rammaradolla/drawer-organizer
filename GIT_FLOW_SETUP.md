@@ -3,7 +3,7 @@
 ## ✅ What's Been Set Up
 
 ### 1. Git Branches
-- **`master`**: Production-ready branch (current state of code)
+- **`main`**: Production-ready branch (current state of code on GitHub)
 - **`develop`**: Development branch (currently active)
 
 ### 2. Configuration Structure
@@ -143,11 +143,11 @@ git checkout -b release/v1.1.0
 # Fix bugs only (no new features)
 git commit -m "fix: bug fix"
 
-# Merge to master
-git checkout master
+# Merge to main
+git checkout main
 git merge --no-ff release/v1.1.0
 git tag -a v1.1.0 -m "Release version 1.1.0"
-git push origin master
+git push origin main
 git push origin v1.1.0
 
 # Merge back to develop
@@ -161,17 +161,17 @@ git branch -d release/v1.1.0
 
 ### Hotfix (Production Fix)
 ```bash
-# Create hotfix from master
-git checkout master
+# Create hotfix from main
+git checkout main
 git checkout -b hotfix/critical-fix
 # Fix the bug
 git commit -m "fix: critical bug"
 
-# Merge to master
-git checkout master
+# Merge to main
+git checkout main
 git merge --no-ff hotfix/critical-fix
 git tag -a v1.1.1 -m "Hotfix: critical bug"
-git push origin master
+git push origin main
 git push origin v1.1.1
 
 # Merge back to develop
@@ -202,7 +202,7 @@ git branch -d hotfix/critical-fix
 
 ## 🎯 Status
 
-✅ Git Flow branches created (master, develop)  
+✅ Git Flow branches created (main on GitHub, develop)  
 ✅ Configuration structure created  
 ✅ Environment sync script created  
 ✅ .gitignore updated  
