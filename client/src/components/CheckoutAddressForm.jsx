@@ -179,6 +179,19 @@ export default function CheckoutAddressForm({ onAddressesReady, onCancel }) {
           )}
         </div>
 
+        {/* Testing Environment Message */}
+        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-4">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl flex-shrink-0">🧪</span>
+            <div>
+              <h4 className="font-semibold text-blue-900 mb-1">Testing Environment</h4>
+              <p className="text-sm text-blue-800">
+                This checkout uses a test payment gateway. You can use dummy credit card details (e.g., <span className="font-mono font-semibold">4242 4242 4242 4242</span>). No actual charges will be made.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <div className="flex justify-end gap-4 pt-4">
           {onCancel && (

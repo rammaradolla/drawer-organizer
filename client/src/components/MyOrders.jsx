@@ -87,27 +87,33 @@ export default function MyOrders() {
             )}
             <div className="flex flex-wrap gap-3">
               {(order.cart_json || []).map((item, idx) => (
-                <div key={idx} className="flex flex-col items-center border rounded p-3 bg-slate-50 min-w-[180px]">
-                  <div className="flex flex-col gap-2 mb-2">
+                <div key={idx} className="flex flex-col border rounded p-3 bg-slate-50 w-full">
+                  <div className="flex flex-row gap-4 mb-3">
                     {item.image2D && (
-                      <div className="flex flex-col items-center">
-                        <div className="text-xs text-gray-500 mb-1 font-medium">2D View</div>
-                        <img src={item.image2D} alt="2D Design" className="w-32 h-24 object-contain border rounded bg-white shadow-sm" />
+                      <div className="flex flex-col items-center flex-1">
+                        <div className="text-xs text-gray-500 mb-2 font-medium">2D View</div>
+                        <div className="w-full max-w-md h-[300px] border rounded bg-white shadow-sm flex items-center justify-center">
+                          <img src={item.image2D} alt="2D Design" className="w-full h-full object-contain" />
+                        </div>
                       </div>
                     )}
                     {item.image3D && (
-                      <div className="flex flex-col items-center">
-                        <div className="text-xs text-gray-500 mb-1 font-medium">3D View</div>
-                        <img src={item.image3D} alt="3D Design" className="w-32 h-24 object-contain border rounded bg-white shadow-sm" />
+                      <div className="flex flex-col items-center flex-1">
+                        <div className="text-xs text-gray-500 mb-2 font-medium">3D View</div>
+                        <div className="w-full max-w-md h-[300px] border rounded bg-white shadow-sm flex items-center justify-center">
+                          <img src={item.image3D} alt="3D Design" className="w-full h-full object-contain" />
+                        </div>
                       </div>
                     )}
                     {!item.image2D && !item.image3D && (
-                      <div className="w-32 h-24 border rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">No Image</div>
+                      <div className="w-full h-48 border rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400">No Image</div>
                     )}
                   </div>
-                  <div className="text-xs text-slate-700 font-medium">{item.dimensions?.width || 'N/A'}" × {item.dimensions?.depth || 'N/A'}" × {item.dimensions?.height || 'N/A'}"</div>
-                  <div className="text-xs text-slate-500">Qty: {item.quantity || 1}</div>
-                  <div className="text-sm text-blue-700 font-bold">${item.price?.toFixed(2)}</div>
+                  <div className="flex flex-wrap gap-3 items-center justify-center">
+                    <div className="text-xs text-slate-700 font-medium">{item.dimensions?.width || 'N/A'}" × {item.dimensions?.depth || 'N/A'}" × {item.dimensions?.height || 'N/A'}"</div>
+                    <div className="text-xs text-slate-500">Qty: {item.quantity || 1}</div>
+                    <div className="text-sm text-blue-700 font-bold">${item.price?.toFixed(2)}</div>
+                  </div>
                 </div>
               ))}
             </div>
