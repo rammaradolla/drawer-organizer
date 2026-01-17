@@ -402,7 +402,7 @@ function App() {
             src="/images/design2organize-logo4.png" 
             alt="Design2Organize - Custom Drawer Inserts to Organize" 
             className="h-14 sm:h-12 md:h-16 object-contain w-auto"
-            style={{ maxWidth: '100%', maxWidth: 'min(400px, 90vw)' }}
+            style={{ maxWidth: 'min(400px, 90vw)' }}
           />
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4 lg:gap-6 w-full sm:w-auto">
             {/* Show Home link for customers only */}

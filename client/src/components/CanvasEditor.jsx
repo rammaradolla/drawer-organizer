@@ -1,8 +1,14 @@
 import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Stage, Layer, Rect, Line, Group, Text, Arrow } from 'react-konva';
+import { 
+  TrashIcon, 
+  ArrowUturnLeftIcon, 
+  ArrowUturnRightIcon 
+} from '@heroicons/react/24/outline';
 import ThreeJSWrapper from './ThreeJSWrapper';
 import AddToCartButton from './AddToCartButton';
 import DrawerSetup from './DrawerSetup';
+import Tooltip from './Tooltip';
 
 // Dynamic texture loading from public/textures directory
 const loadAvailableTextures = () => {
@@ -696,46 +702,54 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
               <div className="flex flex-wrap items-center gap-2 mb-1.5 pb-1 border-b border-slate-200 overflow-x-auto flex-shrink-0" style={{ minHeight: '38px' }}>
                 {/* Compartment Controls */}
                 <div className="flex items-center space-x-1 flex-shrink-0">
-                  <button
-                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-                    onClick={addRow}
-                    disabled={!selectedId}
-                  >
-                    Add Row
-                  </button>
-                  <button
-                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm"
-                    onClick={addColumn}
-                    disabled={!selectedId}
-                  >
-                    Add Column
-                  </button>
-                  <button
-                    className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm"
-                    onClick={handleClear}
-                  >
-                    Clear All
-                  </button>
+                  <Tooltip text="Add Row">
+                    <button
+                      className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={addRow}
+                      disabled={!selectedId}
+                    >
+                      + Row
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Add Column">
+                    <button
+                      className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={addColumn}
+                      disabled={!selectedId}
+                    >
+                      + Column
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Clear All">
+                    <button
+                      className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-md transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      onClick={handleClear}
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
                 </div>
 
                 {/* History Controls */}
                 <div className="flex items-center space-x-1 border-l border-slate-300 pl-2 flex-shrink-0">
-                  <button
-                    className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
-                    onClick={handleUndo}
-                    disabled={historyIndex <= 0}
-                    title="Undo (Ctrl+Z)"
-                  >
-                    ↶ Undo
-                  </button>
-                  <button
-                    className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors"
-                    onClick={handleRedo}
-                    disabled={historyIndex >= history.length - 1}
-                    title="Redo (Ctrl+Y)"
-                  >
-                    ↷ Redo
-                  </button>
+                  <Tooltip text="Undo (Ctrl+Z)">
+                    <button
+                      className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      onClick={handleUndo}
+                      disabled={historyIndex <= 0}
+                    >
+                      <ArrowUturnLeftIcon className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Redo (Ctrl+Y)">
+                    <button
+                      className="px-1.5 sm:px-2 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      onClick={handleRedo}
+                      disabled={historyIndex >= history.length - 1}
+                    >
+                      <ArrowUturnRightIcon className="w-4 h-4" />
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
               
