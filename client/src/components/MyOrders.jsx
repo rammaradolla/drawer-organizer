@@ -2,6 +2,23 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useUser } from './UserProvider';
 
+// Utility function to format dimensions in 1/32 inch scale
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+function formatInches32(value) {
+  if (!value && value !== 0) return 'N/A';
+  const inches = Math.floor(value);
+  let fraction = Math.round((value - inches) * 32);
+  if (fraction === 0) return `${inches}"`;
+  // Reduce fraction
+  const divisor = gcd(fraction, 32);
+  const num = fraction / divisor;
+  const denom = 32 / divisor;
+  return `${inches} ${num}/${denom}"`;
+}
+
 const statusColors = {
   paid: 'bg-green-100 text-green-800',
   pending: 'bg-yellow-100 text-yellow-800',
@@ -92,8 +109,20 @@ export default function MyOrders() {
                     {item.image2D && (
                       <div className="flex flex-col items-center flex-1">
                         <div className="text-xs text-gray-500 mb-2 font-medium">2D View</div>
-                        <div className="w-full max-w-md h-[300px] border rounded bg-white shadow-sm flex items-center justify-center">
-                          <img src={item.image2D} alt="2D Design" className="w-full h-full object-contain" />
+                        <div className="w-full max-w-md h-[300px] border rounded bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                          <img 
+                            src={item.image2D} 
+                            alt="2D Design" 
+                            className="w-full h-full object-contain"
+                            style={{
+                              imageRendering: 'crisp-edges',
+                              WebkitImageRendering: '-webkit-optimize-contrast',
+                              msInterpolationMode: 'nearest-neighbor',
+                              filter: 'contrast(1.2) brightness(1.05)',
+                              backfaceVisibility: 'hidden',
+                              transform: 'translateZ(0)',
+                            }}
+                          />
                         </div>
                       </div>
                     )}
@@ -110,7 +139,10 @@ export default function MyOrders() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-3 items-center justify-center">
-                    <div className="text-xs text-slate-700 font-medium">{item.dimensions?.width || 'N/A'}" × {item.dimensions?.depth || 'N/A'}" × {item.dimensions?.height || 'N/A'}"</div>
+                    <div className="text-xs text-slate-700 font-medium">
+                      <span>Manufacturing: {formatInches32(item.dimensions?.width - 1/16)} × {formatInches32(item.dimensions?.depth - 1/16)} × {formatInches32(item.dimensions?.height)}</span>
+                      <span className="text-slate-500 font-normal ml-2">(Ordered: {formatInches32(item.dimensions?.width)} × {formatInches32(item.dimensions?.depth)} × {formatInches32(item.dimensions?.height)})</span>
+                    </div>
                     <div className="text-xs text-slate-500">Qty: {item.quantity || 1}</div>
                     <div className="text-sm text-blue-700 font-bold">${item.price?.toFixed(2)}</div>
                   </div>

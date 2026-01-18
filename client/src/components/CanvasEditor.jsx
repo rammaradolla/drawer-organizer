@@ -144,12 +144,16 @@ const DimensionArrow = ({ start, end, label, offset = 20 }) => {
             x={(start.x + arrowLength + end.x - arrowLength) / 2}
             y={lineY}
             text={label}
-            fontSize={12}
-            fill="#333"
+            fontSize={13}
+            fontFamily="Arial, sans-serif"
+            fill="#000"
+            stroke="#fff"
+            strokeWidth={0.5}
             fontStyle="bold"
             align="center"
             verticalAlign="middle"
             offsetY={0}
+            perfectDrawEnabled={false}
           />
         </>
       ) : (
@@ -184,12 +188,16 @@ const DimensionArrow = ({ start, end, label, offset = 20 }) => {
             x={lineX}
             y={(start.y + arrowLength + end.y - arrowLength) / 2}
             text={label}
-            fontSize={12}
-            fill="#333"
+            fontSize={13}
+            fontFamily="Arial, sans-serif"
+            fill="#000"
+            stroke="#fff"
+            strokeWidth={0.5}
             fontStyle="bold"
             align="center"
             verticalAlign="middle"
             rotation={-90}
+            perfectDrawEnabled={false}
           />
         </>
       )}
@@ -765,6 +773,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                     ref={stageRef}
                     scaleX={scale}
                     scaleY={scale}
+                    pixelRatio={2}
                     onClick={(e) => {
                       if (e.target === e.target.getStage()) {
                         setSelectedId(null);
@@ -850,8 +859,10 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                                 x={block.x + block.width / 2}
                                 y={block.y + block.height / 2}
                                 text={`W: ${formatInches32(internalWidth)}\nD: ${formatInches32(internalDepth)}`}
-                                fontSize={8}
-                                fill="#333"
+                                fontSize={11}
+                                fontFamily="Arial, sans-serif"
+                                fontStyle="bold"
+                                fill="#000"
                                 align="center"
                                 verticalAlign="middle"
                                 width={block.width - 4}
@@ -859,6 +870,7 @@ const CanvasEditor = forwardRef(({ onCompartmentsChange, onClear, addToCartButto
                                 offsetX={(block.width - 4) / 2}
                                 offsetY={(block.height - 4) / 2}
                                 listening={false}
+                                perfectDrawEnabled={false}
                               />
                             </Group>
                           );
