@@ -8,6 +8,23 @@ import CartItemForm from './CartItemForm';
 import { Link } from 'react-router-dom';
 import LoginButton from './LoginButton';
 
+// Utility function to format dimensions in 1/32 inch scale
+function gcd(a, b) {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+function formatInches32(value) {
+  if (!value && value !== 0) return 'N/A';
+  const inches = Math.floor(value);
+  let fraction = Math.round((value - inches) * 32);
+  if (fraction === 0) return `${inches}"`;
+  // Reduce fraction
+  const divisor = gcd(fraction, 32);
+  const num = fraction / divisor;
+  const denom = 32 / divisor;
+  return `${inches} ${num}/${denom}"`;
+}
+
 export default function Cart() {
   const cart = useSelector(state => state.cart);
   const dispatch = useDispatch();
@@ -105,7 +122,8 @@ export default function Cart() {
             </div>
             <div className="flex-1">
               <div className="font-semibold text-slate-800 mb-1">
-                {item.dimensions.width}" × {item.dimensions.depth}" × {item.dimensions.height}"
+                <span>Manufacturing: {formatInches32(item.dimensions.width - 1/16)} × {formatInches32(item.dimensions.depth - 1/16)} × {formatInches32(item.dimensions.height)}</span>
+                <span className="text-slate-500 font-normal ml-2 text-sm">(Ordered: {formatInches32(item.dimensions.width)} × {formatInches32(item.dimensions.depth)} × {formatInches32(item.dimensions.height)})</span>
               </div>
               <div className="text-xs text-slate-500 mb-1">Added: {new Date(item.createdAt).toLocaleString()}</div>
               <div className="text-xs text-slate-600">Wood: {item.layout.selectedWoodType}</div>

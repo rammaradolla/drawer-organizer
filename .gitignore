@@ -1,2 +1,43 @@
+# Dependencies
+node_modules/
 server/node_modules
+client/node_modules
+
+# Environment files (gitignored - never commit actual values)
+.env
+.env.*
+!.env.example
 server/.env
+server/.env.*
+!server/.env.example
+client/.env
+client/.env.*
+!client/.env.example
+
+# Build outputs
+dist/
+build/
+server/dist
+client/dist
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+server.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp

@@ -2,8 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 
-// Load environment variables right away
+// Load environment variables right away (for backward compatibility)
 dotenv.config();
+
+// Load centralized environment configuration
+// This reads ENV_MODE from root .env and loads appropriate config
+const { config: envConfig, getEnvMode } = require('../config/env');
 
 const path = require('path');
 const { PORTS, SERVER_CONFIG } = require('./config/ports');
@@ -11,16 +15,20 @@ const { router: stripeRouter, webhookHandler: stripeWebhookHandler } = require('
 
 const app = express();
 
-// Middleware - Using centralized port configuration
+// Middleware - Using centralized configuration
 // Allow all origins if ALLOW_ALL_ORIGINS is set (for testing from other machines)
-const corsOptions = process.env.ALLOW_ALL_ORIGINS === 'true' 
+// Priority: envConfig (from centralized config) > process.env (from .env file) > SERVER_CONFIG (fallback)
+const allowAllOrigins = envConfig.ALLOW_ALL_ORIGINS || process.env.ALLOW_ALL_ORIGINS === 'true';
+const corsOrigins = envConfig.CORS_ORIGINS || SERVER_CONFIG.CORS_ORIGINS;
+
+const corsOptions = allowAllOrigins
   ? {
       origin: true, // Allow all origins
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
       credentials: true
     }
   : {
-      origin: SERVER_CONFIG.CORS_ORIGINS,
+      origin: corsOrigins,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
       credentials: true
     };
@@ -43,7 +51,9 @@ const adminRoutes = require('./routes/admin');
 app.use('/api/admin', adminRoutes);
 
 // Only enable test routes in development
-if (process.env.NODE_ENV !== 'production') {
+// Use centralized config to determine environment
+const isDevelopment = envConfig.NODE_ENV !== 'production' || getEnvMode() === 'development';
+if (isDevelopment) {
   app.use('/api/test', require('./routes/test'));
 }
 
@@ -53,7 +63,9 @@ const publicPath = path.join(__dirname, '../client/public');
 app.use('/images', express.static(publicPath + '/images'));
 
 // Serve static files from React app in production
-if (process.env.NODE_ENV === 'production') {
+// Use centralized config to determine environment
+const isProduction = envConfig.NODE_ENV === 'production' || getEnvMode() === 'production';
+if (isProduction) {
   const clientBuildPath = path.join(__dirname, '../client/dist');
   // Serve static files (JS, CSS, images, etc.)
   app.use(express.static(clientBuildPath));
@@ -77,19 +89,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: 'An internal server error occurred',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    error: isDevelopment ? err.message : undefined
   });
 });
 
-// Use centralized port configuration
-const PORT = SERVER_CONFIG.PORT;
+// Use centralized configuration (priority: envConfig > process.env > SERVER_CONFIG)
+const PORT = envConfig.PORT || SERVER_CONFIG.PORT;
 // Listen on all network interfaces (0.0.0.0) to allow access from other machines
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = envConfig.HOST || process.env.HOST || '0.0.0.0';
 app.listen(PORT, HOST, () => {
+  const clientUrl = envConfig.CLIENT_URL || SERVER_CONFIG.CLIENT_URL;
+  const corsOriginsDisplay = allowAllOrigins ? ['* (all origins)'] : corsOrigins;
+  
   console.log(`🚀 Server running on ${HOST}:${PORT}`);
+  console.log(`📱 Environment: ${getEnvMode()} (${envConfig.NODE_ENV})`);
   console.log(`📱 Client running on port ${PORTS.CLIENT}`);
-  console.log(`🔗 Accepting client requests from: ${SERVER_CONFIG.CLIENT_URL}`);
-  console.log(`🌐 CORS origins:`, SERVER_CONFIG.CORS_ORIGINS);
+  console.log(`🔗 Accepting client requests from: ${clientUrl}`);
+  console.log(`🌐 CORS origins:`, corsOriginsDisplay);
   if (HOST === '0.0.0.0') {
     console.log(`🌍 Server is accessible from other machines on your network`);
     console.log(`   Use your local IP address (e.g., http://192.168.x.x:${PORT}) to access from other devices`);

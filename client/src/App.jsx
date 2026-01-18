@@ -47,6 +47,7 @@ function App() {
   const [allUsers, setAllUsers] = useState([]);
   const [toast, setToast] = useState({ message: '', type: '' });
   const [mobileView, setMobileView] = useState('design');
+  const [showUnderConstructionBanner, setShowUnderConstructionBanner] = useState(true);
 
   // Helper to show toast
   const showToast = (message, type = 'info') => {
@@ -402,7 +403,7 @@ function App() {
             src="/images/design2organize-logo4.png" 
             alt="Design2Organize - Custom Drawer Inserts to Organize" 
             className="h-14 sm:h-12 md:h-16 object-contain w-auto"
-            style={{ maxWidth: '100%', maxWidth: 'min(400px, 90vw)' }}
+            style={{ maxWidth: 'min(400px, 90vw)' }}
           />
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-4 lg:gap-6 w-full sm:w-auto">
             {/* Show Home link for customers only */}
@@ -517,6 +518,28 @@ function App() {
         )}
         {/* Hide InfoBanner for operations and admin users */}
         {(!user || user.role === 'customer') && <InfoBanner />}
+        {/* Under Construction Banner - Only show for customers */}
+        {(!user || user.role === 'customer') && showUnderConstructionBanner && (
+          <div className="w-full bg-gradient-to-r from-yellow-400 via-orange-400 to-yellow-400 py-3 px-4 mb-4 shadow-md relative">
+            <button
+              onClick={() => {
+                setShowUnderConstructionBanner(false);
+              }}
+              className="absolute top-2 right-2 sm:top-3 sm:right-3 text-gray-900 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 rounded p-1 transition-colors"
+              aria-label="Close banner"
+            >
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="flex items-center justify-center gap-2 text-center pr-8">
+              <span className="text-2xl">⚠️</span>
+              <p className="text-sm sm:text-base font-semibold text-gray-900">
+                App Under Testing - You can order items with dummy credit card details. No charges will be made.
+              </p>
+            </div>
+          </div>
+        )}
         <Routes>
           <Route path="/orders" element={<MyOrders />} />
           <Route path="/fulfillment" element={<Fulfillment />} />
